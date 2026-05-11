@@ -1,26 +1,173 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --page-background: #0f0c0b;
+  --panel: rgba(28, 22, 20, 0.88);
+  --panel-strong: rgba(39, 31, 28, 0.92);
+  --panel-highlight: rgba(64, 42, 28, 0.92);
+  --ink-strong: #f6efe6;
+  --ink-soft: #b7a897;
+  --ember: #c7642d;
+  --ember-strong: #e87837;
+  --ember-soft: rgba(231, 120, 55, 0.22);
+  --brass: #c8a15d;
+  --line-soft: rgba(255, 244, 230, 0.09);
+  --line-strong: rgba(255, 244, 230, 0.18);
+  --status-good: #45b372;
+  --status-warn: #d5a640;
+  --status-soft: #7a6356;
+  --status-rest: #42516b;
+  --danger: #ff8a7a;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-background: var(--page-background);
+  --color-foreground: var(--ink-strong);
+  --font-sans: var(--font-body);
+  --font-serif: var(--font-display);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background:
+    radial-gradient(circle at top left, rgba(199, 100, 45, 0.12), transparent 24%),
+    radial-gradient(circle at 82% 14%, rgba(200, 161, 93, 0.12), transparent 18%),
+    radial-gradient(circle at bottom, rgba(69, 97, 179, 0.08), transparent 28%),
+    var(--page-background);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  min-height: 100vh;
+  color: var(--ink-strong);
+  font-family: var(--font-body), sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+}
+
+summary::-webkit-details-marker {
+  display: none;
+}
+
+::selection {
+  background: rgba(231, 120, 55, 0.28);
+}
+
+@supports (height: 100dvh) {
+  body {
+    min-height: 100dvh;
+  }
+}
+
+.fire-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 3rem;
+  width: 3rem;
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 211, 158, 0.12);
+  background:
+    radial-gradient(circle at 30% 30%, rgba(255, 240, 214, 0.22), transparent 32%),
+    radial-gradient(circle at 70% 70%, rgba(255, 100, 32, 0.2), transparent 40%),
+    rgba(255, 255, 255, 0.04);
+  box-shadow: 0 0 0 1px rgba(255, 162, 89, 0.04), 0 10px 28px rgba(199, 100, 45, 0.18);
+  transition: transform 160ms ease, box-shadow 160ms ease, background 160ms ease;
+}
+
+.fire-chip:hover,
+.fire-chip:active {
+  transform: translateY(-1px) scale(1.04);
+  box-shadow: 0 0 0 1px rgba(255, 162, 89, 0.08), 0 14px 32px rgba(199, 100, 45, 0.24);
+}
+
+.fire-chip-sm {
+  height: 2.35rem;
+  width: 2.35rem;
+}
+
+.fire-emoji {
+  display: inline-block;
+  transform-origin: 50% 75%;
+  animation: fire-float 2.4s ease-in-out infinite;
+  filter: drop-shadow(0 6px 16px rgba(255, 111, 0, 0.22));
+}
+
+.fire-chip-burst {
+  animation: fire-shell-burst 720ms ease-out 1;
+}
+
+.fire-emoji-burst {
+  animation: fire-burst 720ms cubic-bezier(0.18, 0.8, 0.2, 1) 1;
+}
+
+.timer-burst {
+  animation: timer-shell-burst 820ms ease-out 1;
+}
+
+@keyframes fire-float {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-4deg) scale(1);
+  }
+  35% {
+    transform: translateY(-2px) rotate(4deg) scale(1.06);
+  }
+  70% {
+    transform: translateY(-1px) rotate(-2deg) scale(0.98);
+  }
+}
+
+@keyframes fire-burst {
+  0% {
+    transform: scale(1) rotate(-6deg);
+    filter: drop-shadow(0 6px 16px rgba(255, 111, 0, 0.2));
+  }
+  30% {
+    transform: scale(1.38) rotate(10deg);
+    filter: drop-shadow(0 10px 24px rgba(255, 145, 0, 0.36));
+  }
+  55% {
+    transform: scale(0.96) rotate(-4deg);
+  }
+  100% {
+    transform: scale(1) rotate(0deg);
+    filter: drop-shadow(0 6px 16px rgba(255, 111, 0, 0.22));
+  }
+}
+
+@keyframes fire-shell-burst {
+  0% {
+    transform: scale(1);
+  }
+  30% {
+    transform: scale(1.12);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes timer-shell-burst {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 0 0 rgba(231, 120, 55, 0);
+  }
+  35% {
+    transform: scale(1.02);
+    box-shadow: 0 0 0 8px rgba(231, 120, 55, 0.08);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 rgba(231, 120, 55, 0);
+  }
 }

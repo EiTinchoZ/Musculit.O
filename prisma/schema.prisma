@@ -1,0 +1,70 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model UserProfile {
+  id          String           @id @default(cuid())
+  slug        String           @unique
+  name        String
+  age         Int
+  heightM     Float
+  weightLb    Float
+  goal        String
+  gym         String
+  experience  String
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  sessions    WorkoutSession[]
+}
+
+model WorkoutSession {
+  id                String            @id @default(cuid())
+  userId            String
+  sessionDate       DateTime
+  dayId             String
+  completedCardio   Boolean           @default(false)
+  journal           String            @default("")
+  closedAt          DateTime?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  user              UserProfile       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  exercises         SessionExercise[]
+
+  @@unique([userId, sessionDate])
+  @@index([sessionDate])
+}
+
+model SessionExercise {
+  id            String               @id @default(cuid())
+  workoutId     String
+  exerciseId    String
+  exerciseName  String
+  groupName     String
+  sortOrder     Int
+  completed     Boolean              @default(false)
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+  workout       WorkoutSession       @relation(fields: [workoutId], references: [id], onDelete: Cascade)
+  sets          SessionExerciseSet[]
+
+  @@unique([workoutId, exerciseId])
+  @@index([exerciseName])
+}
+
+model SessionExerciseSet {
+  id                String           @id @default(cuid())
+  sessionExerciseId String
+  setIndex          Int
+  targetLabel       String
+  weightUsed        String           @default("")
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  sessionExercise   SessionExercise  @relation(fields: [sessionExerciseId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionExerciseId, setIndex])
+}
