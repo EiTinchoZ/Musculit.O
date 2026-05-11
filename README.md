@@ -22,7 +22,7 @@
 
 Musculit.O is a personal training operating system built around one real use case: tracking a real gym routine with real weights, real fatigue, real rest periods, and real consistency over time.
 
-This is not a generic fitness template. It is a purpose-built system for Martin Bundy’s current training split, current gym context, and current progression goals.
+This is not a generic fitness template. It is a purpose-built system for Martin Bundy's current training split, current gym context, and current progression goals.
 
 ## Current Capabilities
 
@@ -74,8 +74,8 @@ The app is designed so that data does not stay trapped in browser memory.
 
 Current behavior:
 
-- If `DATABASE_URL` exists, the app saves through `/api/app-state` to PostgreSQL using Prisma
-- If `DATABASE_URL` does not exist, the app falls back to a local JSON store for development continuity
+- If `DATABASE_URL`, `POSTGRES_PRISMA_URL`, `POSTGRES_URL`, or `POSTGRES_URL_NON_POOLING` exists, the app saves through `/api/app-state` to PostgreSQL using Prisma
+- If none of those variables exist, the app falls back to a local JSON store for development continuity
 
 This means the project is already structured so that when deployed correctly on Vercel with Postgres, your logs, set weights, journals, and progress history persist progressively.
 
@@ -91,7 +91,7 @@ Open [http://localhost:3000](http://localhost:3000).
 ## Database Setup
 
 1. Copy `.env.example` to `.env`
-2. Set `DATABASE_URL`
+2. Set `DATABASE_URL` or use the variables injected by Supabase on Vercel
 3. Generate Prisma client:
 
 ```bash
@@ -113,7 +113,7 @@ High-level:
 1. Push repo to GitHub
 2. Import project into Vercel
 3. Connect a PostgreSQL database
-4. Add `DATABASE_URL`
+4. Add `DATABASE_URL` or use Supabase Marketplace env injection
 5. Run schema push
 6. Redeploy
 
@@ -130,6 +130,7 @@ src/
     musculit-app.tsx
   lib/
     app-state-store.ts
+    database-env.ts
     musculit-state.ts
     prisma.ts
     routine-data.ts

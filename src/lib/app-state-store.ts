@@ -2,6 +2,7 @@ import "server-only";
 
 import { promises as fs } from "node:fs";
 import path from "node:path";
+import { hasDatabaseConnection } from "@/lib/database-env";
 import { prisma } from "@/lib/prisma";
 import {
   AppState,
@@ -22,7 +23,7 @@ const USER_SLUG = "martin-bundy";
 export type StorageMode = "database" | "local-fallback";
 
 export async function loadPersistedAppState() {
-  if (process.env.DATABASE_URL) {
+  if (hasDatabaseConnection()) {
     try {
       const state = await loadFromDatabase();
       return { state, storageMode: "database" as const };
@@ -39,7 +40,7 @@ export async function loadPersistedAppState() {
 export async function savePersistedAppState(state: AppState) {
   const normalized = normalizeAppState(state);
 
-  if (process.env.DATABASE_URL) {
+  if (hasDatabaseConnection()) {
     try {
       await saveToDatabase(normalized);
       return { storageMode: "database" as const };

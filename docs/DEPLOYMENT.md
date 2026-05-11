@@ -25,6 +25,14 @@ Required:
 DATABASE_URL=postgresql://USER:PASSWORD@HOST:5432/DBNAME?sslmode=require
 ```
 
+Supabase on Vercel can also inject these automatically:
+
+```bash
+POSTGRES_PRISMA_URL=postgresql://...
+POSTGRES_URL=postgresql://...
+POSTGRES_URL_NON_POOLING=postgresql://...
+```
+
 ## Local Setup Before Deploy
 
 ```bash
@@ -38,7 +46,7 @@ npm run build
 
 1. Push the repository to GitHub.
 2. Import the repository into Vercel.
-3. Add `DATABASE_URL` in Vercel project settings.
+3. Add `DATABASE_URL` in Vercel project settings, or install Supabase from the Vercel Marketplace and let it inject the Postgres variables automatically.
 4. Redeploy so Prisma Client is generated in the Vercel build.
 
 The project already includes:
@@ -58,12 +66,12 @@ Use one of these approaches:
 
 ## Persistence Behavior
 
-When `DATABASE_URL` exists:
+When `DATABASE_URL`, `POSTGRES_PRISMA_URL`, `POSTGRES_URL`, or `POSTGRES_URL_NON_POOLING` exists:
 
 - `GET /api/app-state` loads from database
 - `PUT /api/app-state` saves to database
 
-When `DATABASE_URL` does not exist:
+When none of those variables exist:
 
 - development fallback uses local JSON storage
 
