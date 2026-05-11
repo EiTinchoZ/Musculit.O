@@ -88,6 +88,9 @@ async function loadFromDatabase() {
       goal: initialState.user.goal,
       gym: initialState.user.gym,
       experience: initialState.user.experience,
+      showDetails: initialState.preferences.showDetails,
+      soundEnabled: initialState.preferences.soundEnabled,
+      calendarView: initialState.preferences.calendarView,
     },
     include: {
       sessions: {
@@ -138,7 +141,11 @@ async function loadFromDatabase() {
       gym: user.gym,
       experience: user.experience,
     },
-    preferences: initialState.preferences,
+    preferences: {
+      showDetails: user.showDetails,
+      soundEnabled: user.soundEnabled,
+      calendarView: normalizeCalendarView(user.calendarView),
+    },
     sessions,
   });
 }
@@ -154,6 +161,9 @@ async function saveToDatabase(state: AppState) {
       goal: state.user.goal,
       gym: state.user.gym,
       experience: state.user.experience,
+      showDetails: state.preferences.showDetails,
+      soundEnabled: state.preferences.soundEnabled,
+      calendarView: state.preferences.calendarView,
     },
     create: {
       slug: USER_SLUG,
@@ -164,6 +174,9 @@ async function saveToDatabase(state: AppState) {
       goal: state.user.goal,
       gym: state.user.gym,
       experience: state.user.experience,
+      showDetails: state.preferences.showDetails,
+      soundEnabled: state.preferences.soundEnabled,
+      calendarView: state.preferences.calendarView,
     },
   });
 
@@ -284,4 +297,12 @@ function normalizeSessionRecord(raw: Partial<SessionRecord>, isoDate: string): S
 
 function normalizeWeightArray(weights: string[], setCount: number) {
   return Array.from({ length: setCount }, (_, index) => weights[index] ?? "");
+}
+
+function normalizeCalendarView(value: string) {
+  if (value === "day" || value === "week" || value === "month" || value === "year") {
+    return value;
+  }
+
+  return initialState.preferences.calendarView;
 }

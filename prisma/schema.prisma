@@ -17,6 +17,9 @@ model UserProfile {
   goal        String
   gym         String
   experience  String
+  showDetails Boolean          @default(false)
+  soundEnabled Boolean         @default(false)
+  calendarView String          @default("month")
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
   sessions    WorkoutSession[]
