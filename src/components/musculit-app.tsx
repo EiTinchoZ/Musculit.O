@@ -8,7 +8,6 @@ import {
   STORAGE_KEY,
   formatDisplayDate,
   formatMonthLabel,
-  formatShortLabel,
   fromIsoDate,
   getCompletionPercent,
   getCurrentStreak,
@@ -24,26 +23,22 @@ import {
   getWeekDates,
   getXpForSession,
   initialState,
-  listTrainingDays,
   shiftDate,
   toIsoDate,
-  getYearMonths,
 } from "@/lib/musculit-state";
 import { inferSetCount, normalizeSetWeights } from "@/lib/set-utils";
 
-type TabId = "home" | "tracker" | "calendar" | "profile" | "settings";
+type TabId = "today" | "history" | "profile";
 
 type Celebration = {
   title: string;
   body: string;
 };
 
-const tabs: { id: TabId; label: string; short: string }[] = [
-  { id: "home", label: "Home", short: "Inicio" },
-  { id: "tracker", label: "Tracker", short: "Hoy" },
-  { id: "calendar", label: "Calendar", short: "Calendario" },
-  { id: "profile", label: "Profile", short: "Perfil" },
-  { id: "settings", label: "Settings", short: "Ajustes" },
+const tabs: { id: TabId; label: string }[] = [
+  { id: "today", label: "Hoy" },
+  { id: "history", label: "Historial" },
+  { id: "profile", label: "Perfil" },
 ];
 
 export function MusculitApp() {
@@ -51,14 +46,15 @@ export function MusculitApp() {
   const todayIso = toIsoDate(today);
 
   const [state, setState] = useState<AppState>(() => loadInitialState());
-  const [activeTab, setActiveTab] = useState<TabId>("home");
-  const [selectedDate, setSelectedDate] = useState(todayIso);
-  const [calendarCursor, setCalendarCursor] = useState(
+  const [activeTab, setActiveTab] = useState<TabId>("today");
+  const [historyDate, setHistoryDate] = useState(todayIso);
+  const [historyCursor, setHistoryCursor] = useState(
     new Date(today.getFullYear(), today.getMonth(), 1),
   );
   const [celebration, setCelebration] = useState<Celebration | null>(null);
-  const [flameBurst, setFlameBurst] = useState(false);
-  const [storageMode, setStorageMode] = useState<"checking" | "database" | "local-fallback">("checking");
+  const [storageMode, setStorageMode] = useState<"checking" | "database" | "local-fallback">(
+    "checking",
+  );
   const [remoteReady, setRemoteReady] = useState(false);
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [restSecondsLeft, setRestSecondsLeft] = useState(120);
@@ -66,6 +62,7 @@ export function MusculitApp() {
   const [restLabel, setRestLabel] = useState("Descanso entre sets");
   const [timerBurst, setTimerBurst] = useState(false);
   const audioContextRef = useRef<AudioContext | null>(null);
+
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   }, [state]);
@@ -76,63 +73,41 @@ export function MusculitApp() {
     async function loadRemoteState() {
       try {
         const response = await fetch("/api/app-state", { cache: "no-store" });
-        if (!response.ok) {
-          throw new Error("No se pudo leer el estado remoto");
-        }
+        if (!response.ok) throw new Error();
         const payload = (await response.json()) as {
           state: AppState;
           storageMode: "database" | "local-fallback";
         };
-
-        if (cancelled) {
-          return;
-        }
-
+        if (cancelled) return;
         setState(normalizeLoadedState(payload.state));
         setStorageMode(payload.storageMode);
       } catch {
-        if (!cancelled) {
-          setStorageMode("local-fallback");
-        }
+        if (!cancelled) setStorageMode("local-fallback");
       } finally {
-        if (!cancelled) {
-          setRemoteReady(true);
-        }
+        if (!cancelled) setRemoteReady(true);
       }
     }
 
     void loadRemoteState();
-
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, []);
 
   useEffect(() => {
-    if (!remoteReady) {
-      return;
-    }
+    if (!remoteReady) return;
 
     const timeout = window.setTimeout(async () => {
       try {
         setSaveState("saving");
         const response = await fetch("/api/app-state", {
           method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-          },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify(state),
         });
-
-        if (!response.ok) {
-          throw new Error("No se pudo guardar el estado");
-        }
-
+        if (!response.ok) throw new Error();
         const payload = (await response.json()) as {
           ok: boolean;
           storageMode: "database" | "local-fallback";
         };
-
         setStorageMode(payload.storageMode);
         setSaveState("saved");
       } catch {
@@ -144,25 +119,13 @@ export function MusculitApp() {
   }, [state, remoteReady]);
 
   useEffect(() => {
-    if (!flameBurst) {
-      return;
-    }
-    const timeout = window.setTimeout(() => setFlameBurst(false), 900);
-    return () => window.clearTimeout(timeout);
-  }, [flameBurst]);
-
-  useEffect(() => {
-    if (!timerBurst) {
-      return;
-    }
+    if (!timerBurst) return;
     const timeout = window.setTimeout(() => setTimerBurst(false), 1000);
     return () => window.clearTimeout(timeout);
   }, [timerBurst]);
 
   useEffect(() => {
-    if (!restRunning) {
-      return;
-    }
+    if (!restRunning) return;
 
     const interval = window.setInterval(() => {
       setRestSecondsLeft((current) => {
@@ -180,44 +143,27 @@ export function MusculitApp() {
     return () => window.clearInterval(interval);
   }, [restRunning]);
 
-  const selectedDateObject = fromIsoDate(selectedDate);
-  const selectedDay = getTrainingDayFromDate(selectedDateObject);
-  const selectedSession = getSessionForDate(state, selectedDate);
-  const selectedPercent = getCompletionPercent(selectedDay, selectedSession);
-  const selectedXp = getXpForSession(selectedDay, selectedSession);
-  const selectedStatus = getSessionStatus(selectedDay, selectedSession);
-  const stats = getDerivedStats(state, todayIso);
   const todayDay = getTrainingDayFromDate(today);
   const todaySession = getSessionForDate(state, todayIso);
   const todayPercent = getCompletionPercent(todayDay, todaySession);
+  const stats = getDerivedStats(state, todayIso);
   const nextTrainingDays = getNextTrainingDays(today, 3);
-  const isFutureSelected = selectedDate > todayIso;
-  const weeklyDates = getWeekDates(selectedDateObject);
-  const exerciseProgress = getExerciseProgressSummaries(state);
-  const showFlame = stats.fullCompletionStreak >= 3;
 
-  function updateSession(
-    isoDate: string,
-    updater: (current: ReturnType<typeof getSessionForDate>) => ReturnType<typeof getSessionForDate>,
+  function updateTodaySession(
+    updater: (
+      current: ReturnType<typeof getSessionForDate>,
+    ) => ReturnType<typeof getSessionForDate>,
   ) {
     setState((current) => {
-      const base = getSessionForDate(current, isoDate);
+      const base = getSessionForDate(current, todayIso);
       const next = updater(base);
-      return {
-        ...current,
-        sessions: {
-          ...current.sessions,
-          [isoDate]: next,
-        },
-      };
+      return { ...current, sessions: { ...current.sessions, [todayIso]: next } };
     });
   }
 
   function toggleExercise(exerciseId: string) {
-    if (selectedDay.type === "rest" || isFutureSelected) {
-      return;
-    }
-    updateSession(selectedDate, (session) => {
+    if (todayDay.type === "rest") return;
+    updateTodaySession((session) => {
       const alreadyDone = session.completedExerciseIds.includes(exerciseId);
       return {
         ...session,
@@ -229,79 +175,46 @@ export function MusculitApp() {
   }
 
   function updateSetWeight(exerciseId: string, setIndex: number, value: string) {
-    if (selectedDay.type === "rest" || isFutureSelected) {
-      return;
-    }
-    updateSession(selectedDate, (session) => {
+    if (todayDay.type === "rest") return;
+    updateTodaySession((session) => {
       const currentWeights = session.setWeights[exerciseId] ?? [];
       const nextWeights = [...currentWeights];
       nextWeights[setIndex] = value;
-      return {
-        ...session,
-        setWeights: {
-          ...session.setWeights,
-          [exerciseId]: nextWeights,
-        },
-      };
+      return { ...session, setWeights: { ...session.setWeights, [exerciseId]: nextWeights } };
     });
   }
 
   function setJournal(value: string) {
-    if (selectedDay.type === "rest" || isFutureSelected) {
-      return;
-    }
-    updateSession(selectedDate, (session) => ({
-      ...session,
-      journal: value,
-    }));
+    if (todayDay.type === "rest") return;
+    updateTodaySession((session) => ({ ...session, journal: value }));
   }
 
   function toggleCardio() {
-    if (selectedDay.type === "rest" || isFutureSelected) {
-      return;
-    }
-    updateSession(selectedDate, (session) => ({
-      ...session,
-      completedCardio: !session.completedCardio,
-    }));
+    if (todayDay.type === "rest") return;
+    updateTodaySession((session) => ({ ...session, completedCardio: !session.completedCardio }));
   }
 
   function closeSession() {
-    if (selectedDay.type === "rest" || isFutureSelected) {
-      return;
-    }
-    const percent = getCompletionPercent(selectedDay, selectedSession);
-    const xp = getXpForSession(selectedDay, selectedSession);
+    if (todayDay.type === "rest") return;
+    const percent = getCompletionPercent(todayDay, todaySession);
+    const xp = getXpForSession(todayDay, todaySession);
 
-    updateSession(selectedDate, (session) => ({
-      ...session,
-      closedAt: new Date().toISOString(),
-    }));
+    updateTodaySession((session) => ({ ...session, closedAt: new Date().toISOString() }));
 
-    const nextStreak = selectedDate === todayIso
-      ? getCurrentStreak(
-          {
-            ...state,
-            sessions: {
-              ...state.sessions,
-              [selectedDate]: {
-                ...selectedSession,
-                closedAt: new Date().toISOString(),
-              },
-            },
-          },
-          todayIso,
-        )
-      : stats.streak;
+    const nextStreak = getCurrentStreak(
+      {
+        ...state,
+        sessions: {
+          ...state.sessions,
+          [todayIso]: { ...todaySession, closedAt: new Date().toISOString() },
+        },
+      },
+      todayIso,
+    );
 
     setCelebration({
-      title:
-        percent >= 100
-          ? "Sesion cerrada al 100%"
-          : percent >= 50
-            ? "Sesion guardada como parcial fuerte"
-            : "Sesion guardada",
-      body: `Queda registrada con ${percent}% de avance y ${xp} XP. Racha actual: ${nextStreak}. Una sesion honesta siempre suma.`,
+      title: percent >= 100 ? "Sesion al 100%" : percent >= 50 ? "Sesion guardada" : "Anotado",
+      body: `${percent}% completado · ${xp} XP · Racha ${nextStreak}`,
     });
   }
 
@@ -318,9 +231,7 @@ export function MusculitApp() {
       startRestTimer(restLabel);
       return;
     }
-    if (!restRunning) {
-      primeAudio(audioContextRef);
-    }
+    if (!restRunning) primeAudio(audioContextRef);
     setRestRunning((current) => !current);
   }
 
@@ -331,1031 +242,548 @@ export function MusculitApp() {
     setTimerBurst(false);
   }
 
-  function updateUserField<K extends keyof AppState["user"]>(field: K, value: AppState["user"][K]) {
+  function updateUserField<K extends keyof AppState["user"]>(
+    field: K,
+    value: AppState["user"][K],
+  ) {
     setState((current) => ({
       ...current,
-      user: {
-        ...current.user,
-        [field]: value,
-      },
-    }));
-  }
-
-  function togglePreference<K extends keyof AppState["preferences"]>(field: K) {
-    setState((current) => ({
-      ...current,
-      preferences: {
-        ...current.preferences,
-        [field]: !current.preferences[field],
-      },
+      user: { ...current.user, [field]: value },
     }));
   }
 
   function resetAllData() {
     setState(initialState);
-    setSelectedDate(todayIso);
-    setCalendarCursor(new Date(today.getFullYear(), today.getMonth(), 1));
-    setCelebration({
-      title: "Datos reiniciados",
-      body: "La app volvio al estado base con tu rutina actual.",
-    });
+    setCelebration({ title: "Datos reiniciados", body: "La app volvio al estado base." });
   }
 
+  const isCardioDay = todayDay.type === "training" && todayDay.cardioOnly;
+  const isTrainingDay = todayDay.type === "training" && !todayDay.cardioOnly;
+
   return (
-    <main className="relative min-h-screen overflow-hidden bg-[var(--page-background)] text-[var(--ink-strong)]">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(247,127,0,0.16),_transparent_28%),radial-gradient(circle_at_80%_20%,_rgba(251,191,36,0.14),_transparent_24%),radial-gradient(circle_at_bottom,_rgba(59,130,246,0.08),_transparent_34%)]" />
-      <div className="mx-auto flex min-h-screen w-full max-w-7xl flex-col px-4 pb-[calc(7.5rem+var(--safe-bottom))] pt-[calc(1rem+var(--safe-top))] sm:px-6 lg:px-8">
-        <header className="mb-6 flex items-start justify-between gap-4">
-          <div>
-            <p className="text-xs uppercase tracking-[0.28em] text-[var(--ink-soft)]">
-              Musculit.O
-            </p>
-            <h1 className="mt-2 font-serif text-[clamp(2.2rem,9vw,3.4rem)] leading-[0.94] sm:text-5xl">
-              Disciplina arriba. Cuerpo en construccion.
-            </h1>
-            <p className="mt-3 max-w-xl text-sm leading-7 text-[var(--ink-soft)]">
-              Entrena con intencion, registra con honestidad y deja que la constancia haga el trabajo pesado.
+    <main className="relative min-h-screen bg-[var(--page-background)] text-[var(--ink-strong)] [overscroll-behavior-y:contain]">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(247,127,0,0.12),_transparent_30%)]" />
+
+      <div className="mx-auto flex min-h-screen w-full max-w-2xl flex-col px-4 pb-[calc(5.5rem+var(--safe-bottom))] pt-[calc(1.25rem+var(--safe-top))]">
+
+        {/* Header */}
+        <header className="mb-5 flex items-center justify-between">
+          <p className="text-xs uppercase tracking-[0.28em] text-[var(--ink-soft)]">
+            Musculit.O
+          </p>
+          <div className="flex items-center gap-2">
+            {saveState === "saving" && (
+              <span className="text-[11px] uppercase tracking-[0.16em] text-[var(--ink-soft)]">
+                guardando
+              </span>
+            )}
+            {saveState === "saved" && (
+              <span className="text-[11px] uppercase tracking-[0.16em] text-[var(--status-good)]">
+                guardado
+              </span>
+            )}
+            <p className="text-xs text-[var(--ink-soft)] capitalize">
+              {formatDisplayDate(today)}
             </p>
           </div>
-          <button
-            type="button"
-            onClick={() => {
-              setSelectedDate(todayIso);
-              setCalendarCursor(new Date(today.getFullYear(), today.getMonth(), 1));
-              setActiveTab("tracker");
-            }}
-            className="rounded-full border border-[var(--line-strong)] bg-[var(--panel-strong)] px-4 py-2 text-sm text-[var(--ink-strong)] transition hover:border-[var(--ember)] hover:text-white"
-          >
-            Ir a hoy
-          </button>
         </header>
 
+        {/* Celebration */}
         {celebration ? (
-          <section className="mb-6 rounded-[1.7rem] border border-[var(--ember-soft)] bg-[linear-gradient(135deg,rgba(245,121,32,0.18),rgba(25,18,15,0.85))] p-5 text-white shadow-[0_24px_80px_rgba(245,121,32,0.16)]">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-xs uppercase tracking-[0.24em] text-[rgba(255,255,255,0.72)]">
-                  Resumen guardado
-                </p>
-                <h2 className="mt-2 font-serif text-3xl">{celebration.title}</h2>
-                <p className="mt-2 max-w-3xl text-sm leading-6 text-[rgba(255,255,255,0.82)]">
-                  {celebration.body}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setCelebration(null)}
-                className="rounded-full border border-white/20 px-3 py-1 text-sm text-white/85 transition hover:bg-white/10"
-              >
-                Cerrar
-              </button>
+          <div className="mb-4 flex items-center justify-between gap-4 rounded-2xl border border-[var(--ember-soft)] bg-[rgba(245,121,32,0.12)] px-4 py-3">
+            <div>
+              <p className="text-sm font-medium">{celebration.title}</p>
+              <p className="text-xs text-[var(--ink-soft)]">{celebration.body}</p>
             </div>
-          </section>
+            <button
+              type="button"
+              onClick={() => setCelebration(null)}
+              className="rounded-full border border-white/10 px-3 py-1 text-xs text-[var(--ink-soft)]"
+            >
+              Ok
+            </button>
+          </div>
         ) : null}
 
-        {activeTab === "home" ? (
-          <section className="grid gap-6">
-            <div className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
-              <div className="rounded-[2rem] border border-[var(--line-soft)] bg-[var(--panel)] p-6 shadow-[0_28px_90px_rgba(0,0,0,0.18)] sm:p-7">
-                <p className="text-xs uppercase tracking-[0.24em] text-[var(--ink-soft)]">
-                  Hoy toca
-                </p>
-                <div className="mt-3 flex flex-wrap items-end gap-4">
-                  <h2 className="font-serif text-[clamp(2.1rem,8vw,4rem)] leading-none sm:text-6xl">
+        {/* Tab: Hoy */}
+        {activeTab === "today" ? (
+          <section className="flex flex-col gap-4">
+
+            {/* Card principal del día */}
+            <div className="rounded-2xl border border-[var(--line-soft)] bg-[var(--panel)] p-5">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.24em] text-[var(--ink-soft)]">
+                    {todayDay.label}
+                    {todayDay.companion !== "Solo" && todayDay.companion !== "Libre"
+                      ? ` · ${todayDay.companion}`
+                      : ""}
+                  </p>
+                  <h2 className="mt-1 font-serif text-[clamp(2.4rem,10vw,3.6rem)] leading-none">
                     {todayDay.focus}
                   </h2>
-                  <p className="rounded-full border border-[var(--line-soft)] bg-[var(--panel-strong)] px-3 py-1 text-sm text-[var(--ink-soft)]">
-                    {todayDay.label}
-                  </p>
                 </div>
-                <p className="mt-4 max-w-2xl text-sm leading-7 text-[var(--ink-soft)]">
-                  {todayDay.type === "training"
-                    ? `${todayDay.notes} ${todayDay.cardio}.`
-                    : todayDay.notes}
-                </p>
+                {todayDay.type === "training" && (
+                  <div className="text-right">
+                    <p className="font-serif text-3xl">{todayPercent}%</p>
+                    <p className="text-xs text-[var(--ink-soft)]">completado</p>
+                  </div>
+                )}
+              </div>
 
-                <div className="mt-8 grid gap-4 sm:grid-cols-3">
-                  <StatCard label="Nivel" value={String(stats.level)} hint={`${stats.totalXp} XP total`} />
-                  <StatCard label="Racha" value={`${stats.streak}`} hint={`Maxima ${stats.maxStreak}`} />
-                  <StatCard
-                    label="Semana"
-                    value={`${stats.thisWeekCompleted}/${stats.thisWeekScheduled}`}
-                    hint={`${stats.consistency}% consistencia`}
+              <div className="mt-4 flex flex-wrap items-center gap-3 text-xs text-[var(--ink-soft)]">
+                <span>Racha {stats.streak}</span>
+                <span>·</span>
+                <span>Semana {stats.thisWeekCompleted}/{stats.thisWeekScheduled}</span>
+                <span>·</span>
+                <span>Nivel {stats.level}</span>
+              </div>
+
+              {todayDay.type === "training" && (
+                <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/8">
+                  <div
+                    className="h-full rounded-full bg-[linear-gradient(90deg,var(--ember),var(--brass))]"
+                    style={{ width: `${todayPercent}%` }}
                   />
                 </div>
+              )}
+            </div>
 
-                <div className="mt-8">
-                  <div className="flex items-center justify-between text-sm text-[var(--ink-soft)]">
-                    <span>XP del nivel actual</span>
-                    <span>
-                      {stats.currentLevelXp} / {stats.nextLevelXp}
-                    </span>
-                  </div>
-                  <div className="mt-2 h-3 overflow-hidden rounded-full bg-white/8">
+            {/* Dia de descanso */}
+            {todayDay.type === "rest" ? (
+              <div className="rounded-2xl border border-[var(--line-soft)] bg-[var(--panel)] p-5">
+                <p className="text-sm leading-7 text-[var(--ink-soft)]">{todayDay.notes}</p>
+                <div className="mt-4 grid gap-2">
+                  {nextTrainingDays.map((day) => (
                     <div
-                      className="h-full rounded-full bg-[linear-gradient(90deg,var(--ember),var(--brass))]"
-                      style={{
-                        width: `${Math.min(
-                          100,
-                          (stats.currentLevelXp / stats.nextLevelXp) * 100,
-                        )}%`,
-                      }}
-                    />
-                  </div>
-                </div>
-
-                <div className="mt-8 overflow-hidden rounded-[1.8rem] border border-[rgba(255,181,72,0.18)] bg-[linear-gradient(145deg,rgba(92,44,12,0.68),rgba(24,18,17,0.92))] p-5 shadow-[0_20px_70px_rgba(199,100,45,0.18)]">
-                  <p className="text-xs uppercase tracking-[0.26em] text-[rgba(255,224,179,0.72)]">
-                    Racha diaria
-                  </p>
-                  <div className="mt-3 flex items-end justify-between gap-4">
-                    <div>
-                      <div className="flex items-end gap-3">
-                        <p className="font-serif text-[clamp(3.2rem,16vw,5rem)] leading-none text-[#ffd39e]">
-                          {stats.streak}
-                        </p>
-                        {showFlame ? (
-                          <button
-                            type="button"
-                            onClick={() => setFlameBurst(true)}
-                            className={`fire-chip mb-2 ${flameBurst ? "fire-chip-burst" : ""}`}
-                            aria-label="Activar fuego de la racha"
-                          >
-                            <span className={`fire-emoji ${flameBurst ? "fire-emoji-burst" : ""}`}>
-                              🔥
-                            </span>
-                          </button>
-                        ) : (
-                          <div className="mb-2 rounded-full border border-[rgba(255,211,158,0.12)] bg-[rgba(255,255,255,0.04)] px-3 py-2 text-[11px] uppercase tracking-[0.18em] text-[rgba(255,224,179,0.64)]">
-                            Enciende en 3 completos
-                          </div>
-                        )}
-                      </div>
-                        <p className="mt-2 text-sm leading-6 text-[rgba(255,235,214,0.8)]">
-                          Dias seguidos cumpliendo al menos el 50% de una sesion programada.
-                        </p>
-                        <p className="mt-2 text-xs leading-6 text-[rgba(255,224,179,0.62)]">
-                          El fuego aparece solo con 3 dias seguidos al 100%.
-                        </p>
-                      </div>
-                    <div className="rounded-full border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.04)] px-4 py-2 text-right">
-                      <p className="text-[11px] uppercase tracking-[0.2em] text-[rgba(255,224,179,0.62)]">
-                        Mejor marca
-                      </p>
-                      <p className="mt-1 font-serif text-2xl text-[#fff1db]">{stats.maxStreak}</p>
+                      key={day.id}
+                      className="flex items-center justify-between rounded-xl border border-[var(--line-soft)] bg-[var(--panel-strong)] px-4 py-3"
+                    >
+                      <p className="text-sm text-[var(--ink-soft)]">{day.label}</p>
+                      <p className="text-sm font-medium">{day.focus}</p>
                     </div>
-                  </div>
+                  ))}
                 </div>
+              </div>
+            ) : null}
 
-                <div className="mt-8 rounded-[1.6rem] border border-[var(--line-soft)] bg-[var(--panel-strong)] p-4">
+            {/* Dia de cardio puro (Viernes) */}
+            {isCardioDay ? (
+              <div className="rounded-2xl border border-[var(--line-soft)] bg-[var(--panel)] p-5">
+                <p className="text-sm leading-7 text-[var(--ink-soft)]">{todayDay.notes}</p>
+                <button
+                  type="button"
+                  onClick={toggleCardio}
+                  className={`mt-4 flex w-full items-center justify-between rounded-xl border px-4 py-4 text-left transition ${
+                    todaySession.completedCardio
+                      ? "border-[var(--status-good)] bg-[rgba(69,179,114,0.12)]"
+                      : "border-[var(--line-soft)] bg-[var(--panel-strong)]"
+                  }`}
+                >
+                  <div>
+                    <p className="font-medium">Escaladora</p>
+                    <p className="mt-1 text-sm text-[var(--ink-soft)]">{todayDay.cardio}</p>
+                  </div>
+                  <span className="text-lg">
+                    {todaySession.completedCardio ? "✓" : "○"}
+                  </span>
+                </button>
+
+                {todaySession.completedCardio && (
+                  <button
+                    type="button"
+                    onClick={closeSession}
+                    className="mt-4 w-full rounded-full bg-[var(--ember)] py-3 text-sm font-medium text-white"
+                  >
+                    Guardar sesion
+                  </button>
+                )}
+              </div>
+            ) : null}
+
+            {/* Dia de entrenamiento con ejercicios */}
+            {isTrainingDay ? (
+              <>
+                {/* Timer */}
+                <div
+                  className={`rounded-2xl border border-[var(--line-soft)] bg-[var(--panel)] p-4 ${timerBurst ? "timer-burst" : ""}`}
+                >
                   <div className="flex items-center justify-between gap-3">
                     <div>
-                      <p className="text-xs uppercase tracking-[0.2em] text-[var(--ink-soft)]">
-                        Estado del dia
+                      <p className="text-[11px] uppercase tracking-[0.18em] text-[var(--ink-soft)]">
+                        {restLabel}
                       </p>
-                      <p className="mt-2 font-serif text-3xl">{todayPercent}%</p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSelectedDate(todayIso);
-                        setActiveTab("tracker");
-                      }}
-                      className="rounded-full bg-[var(--ember)] px-5 py-3 text-sm font-medium text-white transition hover:bg-[var(--ember-strong)]"
-                    >
-                      Abrir tracker
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid gap-4">
-                <SurfaceCard title="Siguiente bloque">
-                  <div className="space-y-3">
-                    {nextTrainingDays.map((day) => (
-                      <div
-                        key={day.id}
-                        className="rounded-[1.4rem] border border-[var(--line-soft)] bg-[var(--panel-strong)] px-4 py-3"
-                      >
-                        <p className="text-sm uppercase tracking-[0.18em] text-[var(--ink-soft)]">
-                          {day.label}
-                        </p>
-                        <p className="mt-1 text-lg font-medium">{day.focus}</p>
-                        <p className="mt-1 text-sm text-[var(--ink-soft)]">{day.duration}</p>
-                      </div>
-                    ))}
-                  </div>
-                </SurfaceCard>
-
-                <SurfaceCard title="Semana viva">
-                  <div className="grid grid-cols-7 gap-2">
-                    {getWeekDates(today).map((date) => {
-                      const day = getTrainingDayFromDate(date);
-                      const iso = toIsoDate(date);
-                      const session = getSessionForDate(state, iso);
-                      const status = getSessionStatus(day, session);
-                      const isToday = iso === todayIso;
-                      return (
-                        <button
-                          key={iso}
-                          type="button"
-                          onClick={() => {
-                            setSelectedDate(iso);
-                            setActiveTab("tracker");
-                          }}
-                          className={`rounded-[1.2rem] border px-2 py-3 text-left transition ${
-                            isToday
-                              ? "border-[var(--ember)] bg-[var(--panel-highlight)]"
-                              : "border-[var(--line-soft)] bg-[var(--panel-strong)]"
-                          }`}
-                        >
-                          <p className="text-[11px] uppercase tracking-[0.18em] text-[var(--ink-soft)]">
-                            {day.shortLabel}
-                          </p>
-                          <div
-                            className="mt-3 h-2 rounded-full"
-                            style={{ backgroundColor: getStatusTone(status) }}
-                          />
-                          <p className="mt-3 text-xs text-[var(--ink-soft)]">{day.focus}</p>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </SurfaceCard>
-              </div>
-            </div>
-
-            <div className="grid gap-4 lg:grid-cols-2">
-              <SurfaceCard title="Tu split actual">
-                <div className="grid gap-3">
-                  {weeklySplit.map((day) => (
-                    <button
-                      key={day.id}
-                      type="button"
-                      onClick={() => {
-                        const target = getNearestDateForDay(day.id, today);
-                        setSelectedDate(toIsoDate(target));
-                        setActiveTab("tracker");
-                      }}
-                      className="flex items-start justify-between gap-4 rounded-[1.35rem] border border-[var(--line-soft)] bg-[var(--panel-strong)] px-4 py-4 text-left transition hover:border-[var(--line-strong)]"
-                    >
-                      <div>
-                        <p className="text-sm uppercase tracking-[0.2em] text-[var(--ink-soft)]">
-                          {day.label}
-                        </p>
-                        <p className="mt-1 text-lg font-medium">{day.focus}</p>
-                      </div>
-                      <p className="max-w-[13rem] text-right text-sm leading-6 text-[var(--ink-soft)]">
-                        {day.type === "training" ? `${day.exercises.length} ejercicios` : "Recuperacion"}
-                      </p>
-                    </button>
-                  ))}
-                </div>
-              </SurfaceCard>
-
-              <SurfaceCard title="Enfoque del build">
-                <div className="grid gap-3">
-                  {[
-                    "Tracking diario con pesos por set para ver tu progresion real.",
-                    "XP, nivel y racha sobre tu rutina actual.",
-                    "Calendario para revisar dias completos y parciales.",
-                    "Journal para registrar sensaciones y sostener el habito.",
-                  ].map((item) => (
-                    <div
-                      key={item}
-                      className="rounded-[1.35rem] border border-[var(--line-soft)] bg-[var(--panel-strong)] px-4 py-4 text-sm leading-7 text-[var(--ink-soft)]"
-                    >
-                      {item}
-                    </div>
-                  ))}
-                </div>
-              </SurfaceCard>
-            </div>
-          </section>
-        ) : null}
-
-        {activeTab === "tracker" ? (
-          <section className="grid gap-6 lg:grid-cols-[0.8fr_1.2fr]">
-            <div className="space-y-4">
-              <SurfaceCard title="Fecha activa">
-                <div className="space-y-4">
-                  <p className="font-serif text-3xl leading-tight">
-                    {formatDisplayDate(selectedDateObject)}
-                  </p>
-                  <div className="grid grid-cols-3 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setSelectedDate(toIsoDate(shiftDate(selectedDateObject, -1)))}
-                      className="rounded-full border border-[var(--line-soft)] bg-[var(--panel-strong)] px-3 py-2 text-sm text-[var(--ink-soft)]"
-                    >
-                      Ayer
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setSelectedDate(todayIso)}
-                      className="rounded-full border border-[var(--line-soft)] bg-[var(--panel-strong)] px-3 py-2 text-sm text-[var(--ink-soft)]"
-                    >
-                      Hoy
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setSelectedDate(toIsoDate(shiftDate(selectedDateObject, 1)))}
-                      className="rounded-full border border-[var(--line-soft)] bg-[var(--panel-strong)] px-3 py-2 text-sm text-[var(--ink-soft)]"
-                    >
-                      Manana
-                    </button>
-                  </div>
-                  <p className="text-sm leading-7 text-[var(--ink-soft)]">
-                    {isFutureSelected
-                      ? "Las fechas futuras se muestran en modo preview."
-                      : selectedDay.type === "rest"
-                        ? "Dia de descanso. Puedes usarlo para revisar, no para cargar entrenamiento."
-                        : `${selectedDay.duration} · ${selectedDay.companion}`}
-                  </p>
-                  <div className="rounded-[1.2rem] border border-[rgba(255,181,72,0.18)] bg-[rgba(199,100,45,0.08)] px-4 py-3">
-                    <p className="text-[11px] uppercase tracking-[0.18em] text-[rgba(255,208,156,0.72)]">
-                      Racha actual
-                    </p>
-                    <div className="mt-1 flex items-center gap-2">
-                      <p className="font-serif text-2xl text-[#ffd39e]">
-                        {stats.streak} dias
-                      </p>
-                      {showFlame ? (
-                        <button
-                          type="button"
-                          onClick={() => setFlameBurst(true)}
-                          className={`fire-chip fire-chip-sm ${flameBurst ? "fire-chip-burst" : ""}`}
-                          aria-label="Activar fuego de la racha"
-                        >
-                          <span className={`fire-emoji ${flameBurst ? "fire-emoji-burst" : ""}`}>
-                            🔥
-                          </span>
-                        </button>
-                      ) : null}
-                    </div>
-                    <p className="mt-2 text-xs leading-6 text-[rgba(255,208,156,0.72)]">
-                      Suma 3 dias perfectos seguidos y enciendes el fuego.
-                    </p>
-                  </div>
-                </div>
-              </SurfaceCard>
-
-              {selectedDay.type === "training" ? (
-                <SurfaceCard title="Timer de descanso">
-                  <div className={`rounded-[1.45rem] border border-[var(--line-soft)] bg-[var(--panel-strong)] p-4 ${timerBurst ? "timer-burst" : ""}`}>
-                    <p className="text-xs uppercase tracking-[0.18em] text-[var(--ink-soft)]">
-                      {restLabel}
-                    </p>
-                    <div className="mt-3 flex items-end justify-between gap-3">
-                      <p className="font-serif text-[clamp(2.8rem,12vw,4rem)] leading-none">
+                      <p className="mt-1 font-serif text-4xl leading-none">
                         {formatSeconds(restSecondsLeft)}
                       </p>
-                      <span
-                        className={`rounded-full px-3 py-1 text-[11px] uppercase tracking-[0.18em] ${
-                          restRunning
-                            ? "bg-[rgba(69,179,114,0.16)] text-[var(--status-good)]"
-                            : restSecondsLeft === 0
-                              ? "bg-[rgba(231,120,55,0.16)] text-[#ffd39e]"
-                              : "bg-[var(--panel)] text-[var(--ink-soft)]"
-                        }`}
-                      >
-                        {restRunning ? "corriendo" : restSecondsLeft === 0 ? "listo" : "pausado"}
-                      </span>
                     </div>
-                    <div className="mt-4 grid grid-cols-3 gap-2">
+                    <div className="flex gap-2">
                       <button
                         type="button"
-                        onClick={() => startRestTimer("Descanso entre sets")}
-                        className="rounded-full bg-[var(--ember)] px-3 py-3 text-sm font-medium text-white transition hover:bg-[var(--ember-strong)]"
+                        onClick={() => startRestTimer()}
+                        className="rounded-full bg-[var(--ember)] px-4 py-2 text-sm font-medium text-white"
                       >
                         2:00
                       </button>
                       <button
                         type="button"
                         onClick={toggleRestTimer}
-                        className="rounded-full border border-[var(--line-soft)] bg-[var(--panel)] px-3 py-3 text-sm text-[var(--ink-soft)]"
+                        className="rounded-full border border-[var(--line-soft)] bg-[var(--panel-strong)] px-4 py-2 text-sm text-[var(--ink-soft)]"
                       >
                         {restRunning ? "Pausar" : "Seguir"}
                       </button>
                       <button
                         type="button"
                         onClick={resetRestTimer}
-                        className="rounded-full border border-[var(--line-soft)] bg-[var(--panel)] px-3 py-3 text-sm text-[var(--ink-soft)]"
+                        className="rounded-full border border-[var(--line-soft)] bg-[var(--panel-strong)] px-4 py-2 text-sm text-[var(--ink-soft)]"
                       >
                         Reset
                       </button>
                     </div>
-                    <p className="mt-4 text-sm leading-7 text-[var(--ink-soft)]">
-                      Toca descanso al terminar cada set. Recupera, respira y vuelve con fuerza.
-                    </p>
                   </div>
-                </SurfaceCard>
-              ) : null}
+                </div>
 
-              <SurfaceCard title="Bloque del dia">
-                <p className="font-serif text-4xl">{selectedDay.focus}</p>
-                <p className="mt-3 text-sm leading-7 text-[var(--ink-soft)]">
-                  {selectedDay.notes}
-                </p>
-                {selectedDay.type === "training" ? (
-                  <>
-                    <div className="mt-5 flex items-center justify-between text-sm text-[var(--ink-soft)]">
-                      <span>Progreso</span>
-                      <span>
-                        {selectedSession.completedExerciseIds.length + (selectedSession.completedCardio ? 1 : 0)} / {getTrackableItemCount(selectedDay)}
-                      </span>
-                    </div>
-                    <div className="mt-2 h-3 overflow-hidden rounded-full bg-white/8">
+                {/* Ejercicios */}
+                <div className="grid gap-3">
+                  {todayDay.exercises.map((exercise) => {
+                    const checked = todaySession.completedExerciseIds.includes(exercise.id);
+                    const setCount = inferSetCount(exercise.sets);
+                    const setWeights = normalizeSetWeights(todaySession.setWeights[exercise.id]);
+
+                    return (
                       <div
-                        className="h-full rounded-full bg-[linear-gradient(90deg,var(--ember),var(--brass))]"
-                        style={{ width: `${selectedPercent}%` }}
-                      />
-                    </div>
-                    <div className="mt-5 grid gap-3">
-                      <MetricPill label="Estado" value={statusLabel(selectedStatus)} />
-                      <MetricPill label="XP" value={`${selectedXp}`} />
-                      <MetricPill label="Cardio" value={selectedDay.cardio} />
-                    </div>
-                  </>
-                ) : null}
-              </SurfaceCard>
-
-              <SurfaceCard title="Calentamiento">
-                {selectedDay.warmup.length ? (
-                  <div className="grid gap-3">
-                    {selectedDay.warmup.map((item) => (
-                      <div
-                        key={item}
-                        className="rounded-[1.25rem] border border-[var(--line-soft)] bg-[var(--panel-strong)] px-4 py-3 text-sm leading-7 text-[var(--ink-soft)]"
-                      >
-                        {item}
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-sm leading-7 text-[var(--ink-soft)]">
-                    Solo recuperacion y movilidad ligera.
-                  </p>
-                )}
-              </SurfaceCard>
-            </div>
-
-            <div className="space-y-4">
-              {selectedDay.type === "rest" ? (
-                <SurfaceCard title="Descanso">
-                  <p className="text-lg text-[var(--ink-soft)]">
-                    Este dia no lleva tracker. Mejor usalo para dormir bien, hidratarte y llegar fuerte al siguiente bloque.
-                  </p>
-                </SurfaceCard>
-              ) : (
-                <>
-                  <SurfaceCard title="Ejercicios">
-                    <div className="grid gap-3">
-                      {selectedDay.exercises.map((exercise) => {
-                        const checked = selectedSession.completedExerciseIds.includes(exercise.id);
-                        const setCount = inferSetCount(exercise.sets);
-                        const setWeights = normalizeSetWeights(selectedSession.setWeights[exercise.id]);
-                        return (
-                          <details
-                            key={exercise.id}
-                            className={`rounded-[1.45rem] border bg-[var(--panel-strong)] px-4 py-4 transition ${
-                              checked
-                                ? "border-[var(--status-good)]"
-                                : "border-[var(--line-soft)]"
-                            }`}
-                            open={state.preferences.showDetails}
-                          >
-                            <summary className="grid list-none cursor-pointer gap-4 sm:grid-cols-[auto_1fr_auto] sm:items-center">
-                              <button
-                                type="button"
-                                onClick={(event) => {
-                                  event.preventDefault();
-                                  toggleExercise(exercise.id);
-                                }}
-                                className={`flex h-11 w-11 items-center justify-center rounded-2xl border text-xl transition ${
-                                  checked
-                                    ? "border-[var(--status-good)] bg-[rgba(69,179,114,0.16)] text-[var(--status-good)]"
-                                    : "border-[var(--line-soft)] bg-transparent text-[var(--ink-soft)]"
-                                }`}
-                              >
-                                {checked ? "✓" : "○"}
-                              </button>
-                              <div>
-                                <p className="text-base font-medium">{exercise.name}</p>
-                                <p className="mt-1 text-xs uppercase tracking-[0.18em] text-[var(--ink-soft)]">
-                                  {exercise.group}
-                                </p>
-                              </div>
-                              <div className="text-right">
-                                <p className="font-serif text-xl sm:text-2xl">{exercise.sets}</p>
-                                <p className="text-xs uppercase tracking-[0.18em] text-[var(--ink-soft)]">
-                                  series x reps
-                                </p>
-                              </div>
-                            </summary>
-
-                            <div className="mt-4 grid gap-3 border-t border-[var(--line-soft)] pt-4">
-                              <div className="grid gap-2 text-sm text-[var(--ink-soft)]">
-                                <span className="text-sm">Peso por set</span>
-                                <div className="grid gap-2 sm:grid-cols-3">
-                                  {Array.from({ length: setCount }, (_, setIndex) => (
-                                    <label
-                                      key={`${exercise.id}-set-${setIndex + 1}`}
-                                      className="grid gap-2 rounded-[1rem] border border-[var(--line-soft)] bg-[var(--panel)] px-3 py-3"
-                                    >
-                                      <div className="flex items-center justify-between gap-2">
-                                        <span className="text-[11px] uppercase tracking-[0.16em] text-[var(--ink-soft)]">
-                                          Set {setIndex + 1}
-                                        </span>
-                                        <button
-                                          type="button"
-                                          onClick={() => startRestTimer(`${exercise.name} · Set ${setIndex + 1}`)}
-                                          className="rounded-full border border-[rgba(255,181,72,0.18)] bg-[rgba(199,100,45,0.1)] px-2 py-1 text-[10px] uppercase tracking-[0.16em] text-[#ffd39e]"
-                                        >
-                                          Descanso
-                                        </button>
-                                      </div>
-                                      <input
-                                        value={setWeights[setIndex] ?? ""}
-                                        onChange={(event) =>
-                                          updateSetWeight(exercise.id, setIndex, event.target.value)
-                                        }
-                                        disabled={isFutureSelected}
-                                        placeholder="Ej. 25 lb"
-                                        className="rounded-xl border border-[var(--line-soft)] bg-[var(--panel-strong)] px-3 py-2 text-sm text-[var(--ink-strong)] outline-none transition placeholder:text-[var(--ink-soft)] focus:border-[var(--ember)] disabled:opacity-50"
-                                      />
-                                    </label>
-                                  ))}
-                                </div>
-                              </div>
-                              <InfoRow label="Clave tecnica" value={exercise.cue} />
-                              <InfoRow label="Setup" value={exercise.setup} />
-                              <InfoRow label="Donde sentirlo" value={exercise.feel} />
-                              <InfoRow label="Alternativa" value={exercise.alternative} />
-                            </div>
-                          </details>
-                        );
-                      })}
-                    </div>
-                  </SurfaceCard>
-
-                  <SurfaceCard title="Cierre del bloque">
-                    <div className="grid gap-4">
-                      <button
-                        type="button"
-                        onClick={toggleCardio}
-                        className={`flex items-center justify-between rounded-[1.35rem] border px-4 py-4 text-left transition ${
-                          selectedSession.completedCardio
-                            ? "border-[var(--status-good)] bg-[rgba(69,179,114,0.12)]"
-                            : "border-[var(--line-soft)] bg-[var(--panel-strong)]"
+                        key={exercise.id}
+                        className={`rounded-2xl border bg-[var(--panel-strong)] p-4 transition ${
+                          checked ? "border-[var(--status-good)]" : "border-[var(--line-soft)]"
                         }`}
                       >
-                        <div>
-                          <p className="text-base font-medium">Cardio final</p>
-                          <p className="mt-1 text-sm text-[var(--ink-soft)]">
-                            {selectedDay.cardio}
+                        <div className="flex items-center gap-3">
+                          <button
+                            type="button"
+                            onClick={() => toggleExercise(exercise.id)}
+                            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border text-lg transition ${
+                              checked
+                                ? "border-[var(--status-good)] bg-[rgba(69,179,114,0.16)] text-[var(--status-good)]"
+                                : "border-[var(--line-soft)] text-[var(--ink-soft)]"
+                            }`}
+                          >
+                            {checked ? "✓" : "○"}
+                          </button>
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-medium">{exercise.name}</p>
+                            <p className="text-xs text-[var(--ink-soft)]">{exercise.group}</p>
+                          </div>
+                          <p className="shrink-0 font-mono text-sm text-[var(--ink-soft)]">
+                            {exercise.sets}
                           </p>
                         </div>
-                        <span className="text-lg">
-                          {selectedSession.completedCardio ? "✓" : "○"}
-                        </span>
-                      </button>
 
-                      <label className="grid gap-2">
-                        <span className="text-sm uppercase tracking-[0.18em] text-[var(--ink-soft)]">
-                          Journal post sesion
-                        </span>
-                        <textarea
-                          value={selectedSession.journal}
-                          onChange={(event) => setJournal(event.target.value)}
-                          disabled={isFutureSelected}
-                          rows={5}
-                          placeholder="Como te sentiste, que peso te costo, si una tecnica se te complico, energia, molestias, etc."
-                          className="rounded-[1.35rem] border border-[var(--line-soft)] bg-[var(--panel-strong)] px-4 py-4 text-sm leading-7 text-[var(--ink-strong)] outline-none transition placeholder:text-[var(--ink-soft)] focus:border-[var(--ember)] disabled:opacity-50"
-                        />
-                      </label>
-
-                      <div className="flex flex-wrap items-center justify-between gap-3 rounded-[1.35rem] border border-[var(--line-soft)] bg-[var(--panel-strong)] px-4 py-4">
-                        <div>
-                          <p className="text-base font-medium">Cerrar sesion</p>
-                          <p className="mt-1 text-sm text-[var(--ink-soft)]">
-                            Guarda el estado del dia con {selectedPercent}% y {selectedXp} XP. Lo importante es dejar evidencia de otra sesion bien peleada.
-                          </p>
+                        <div className="mt-3 grid grid-cols-3 gap-2">
+                          {Array.from({ length: setCount }, (_, setIndex) => (
+                            <div key={`${exercise.id}-s${setIndex}`} className="flex flex-col gap-1">
+                              <input
+                                value={setWeights[setIndex] ?? ""}
+                                onChange={(e) => updateSetWeight(exercise.id, setIndex, e.target.value)}
+                                placeholder={`Set ${setIndex + 1}`}
+                                className="rounded-lg border border-[var(--line-soft)] bg-[var(--panel)] px-2 py-2 text-center text-sm text-[var(--ink-strong)] outline-none transition placeholder:text-[var(--ink-soft)] focus:border-[var(--ember)]"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => startRestTimer(`${exercise.name} · S${setIndex + 1}`)}
+                                className="rounded-lg border border-[rgba(255,181,72,0.2)] bg-[rgba(199,100,45,0.08)] py-1 text-[10px] uppercase tracking-[0.14em] text-[#ffd39e]"
+                              >
+                                Timer
+                              </button>
+                            </div>
+                          ))}
                         </div>
-                        <button
-                          type="button"
-                          onClick={closeSession}
-                          disabled={isFutureSelected}
-                          className="rounded-full bg-[var(--ember)] px-5 py-3 text-sm font-medium text-white transition hover:bg-[var(--ember-strong)] disabled:opacity-50"
-                        >
-                          Guardar avance
-                        </button>
                       </div>
+                    );
+                  })}
+                </div>
+
+                {/* Cardio y cierre */}
+                <div className="rounded-2xl border border-[var(--line-soft)] bg-[var(--panel)] p-5">
+                  <button
+                    type="button"
+                    onClick={toggleCardio}
+                    className={`flex w-full items-center justify-between rounded-xl border px-4 py-3 text-left transition ${
+                      todaySession.completedCardio
+                        ? "border-[var(--status-good)] bg-[rgba(69,179,114,0.12)]"
+                        : "border-[var(--line-soft)] bg-[var(--panel-strong)]"
+                    }`}
+                  >
+                    <div>
+                      <p className="text-sm font-medium">Cardio final</p>
+                      <p className="text-xs text-[var(--ink-soft)]">{todayDay.cardio}</p>
                     </div>
-                  </SurfaceCard>
-                </>
-              )}
-            </div>
+                    <span>{todaySession.completedCardio ? "✓" : "○"}</span>
+                  </button>
+
+                  <label className="mt-4 grid gap-2">
+                    <span className="text-xs uppercase tracking-[0.18em] text-[var(--ink-soft)]">
+                      Journal
+                    </span>
+                    <textarea
+                      value={todaySession.journal}
+                      onChange={(e) => setJournal(e.target.value)}
+                      rows={4}
+                      placeholder="Como te sentiste, que peso te costo, energia, molestias..."
+                      className="rounded-xl border border-[var(--line-soft)] bg-[var(--panel-strong)] px-4 py-3 text-sm leading-7 text-[var(--ink-strong)] outline-none transition placeholder:text-[var(--ink-soft)] focus:border-[var(--ember)]"
+                    />
+                  </label>
+
+                  <button
+                    type="button"
+                    onClick={closeSession}
+                    className="mt-4 w-full rounded-full bg-[var(--ember)] py-3 text-sm font-medium text-white transition hover:bg-[var(--ember-strong)]"
+                  >
+                    Guardar sesion · {todayPercent}%
+                  </button>
+                </div>
+              </>
+            ) : null}
           </section>
         ) : null}
 
-        {activeTab === "calendar" ? (
-          <section className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
-            <SurfaceCard title="Vista temporal">
-              <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-                <div className="flex flex-wrap gap-2">
-                  {(["day", "week", "month", "year"] as const).map((view) => (
+        {/* Tab: Historial */}
+        {activeTab === "history" ? (
+          <section className="flex flex-col gap-4">
+            {/* Semana actual */}
+            <div className="rounded-2xl border border-[var(--line-soft)] bg-[var(--panel)] p-4">
+              <p className="text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">
+                Esta semana
+              </p>
+              <div className="mt-3 grid grid-cols-7 gap-1.5">
+                {getWeekDates(today).map((date) => {
+                  const day = getTrainingDayFromDate(date);
+                  const iso = toIsoDate(date);
+                  const session = getSessionForDate(state, iso);
+                  const status = getSessionStatus(day, session);
+                  const isToday = iso === todayIso;
+                  const isSelected = iso === historyDate;
+                  return (
                     <button
-                      key={view}
+                      key={iso}
                       type="button"
-                      onClick={() =>
-                        setState((current) => ({
-                          ...current,
-                          preferences: {
-                            ...current.preferences,
-                            calendarView: view,
-                          },
-                        }))
-                      }
-                      className={`rounded-full px-4 py-2 text-sm transition ${
-                        state.preferences.calendarView === view
-                          ? "bg-[var(--ember)] text-white"
-                          : "border border-[var(--line-soft)] bg-[var(--panel-strong)] text-[var(--ink-soft)]"
+                      onClick={() => setHistoryDate(iso)}
+                      className={`rounded-xl border py-2 text-center transition ${
+                        isSelected
+                          ? "border-[var(--ember)] bg-[var(--panel-highlight)]"
+                          : isToday
+                            ? "border-[var(--ember-soft)] bg-[var(--panel-strong)]"
+                            : "border-[var(--line-soft)] bg-[var(--panel-strong)]"
                       }`}
                     >
-                      {view}
+                      <p className="text-[10px] uppercase tracking-[0.14em] text-[var(--ink-soft)]">
+                        {day.shortLabel}
+                      </p>
+                      <div
+                        className="mx-auto mt-2 h-2 w-2 rounded-full"
+                        style={{
+                          backgroundColor: getStatusTone(status) || "rgba(255,255,255,0.06)",
+                        }}
+                      />
                     </button>
-                  ))}
-                </div>
+                  );
+                })}
+              </div>
+            </div>
 
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setCalendarCursor(new Date(calendarCursor.getFullYear(), calendarCursor.getMonth() - 1, 1))
-                    }
-                    className="rounded-full border border-[var(--line-soft)] bg-[var(--panel-strong)] px-3 py-2 text-sm text-[var(--ink-soft)]"
-                  >
-                    ←
-                  </button>
-                  <p className="min-w-[12rem] text-center font-serif text-2xl capitalize">
-                    {formatMonthLabel(calendarCursor)}
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setCalendarCursor(new Date(calendarCursor.getFullYear(), calendarCursor.getMonth() + 1, 1))
-                    }
-                    className="rounded-full border border-[var(--line-soft)] bg-[var(--panel-strong)] px-3 py-2 text-sm text-[var(--ink-soft)]"
-                  >
-                    →
-                  </button>
-                </div>
+            {/* Calendario mensual */}
+            <div className="rounded-2xl border border-[var(--line-soft)] bg-[var(--panel)] p-4">
+              <div className="mb-4 flex items-center justify-between">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setHistoryCursor(
+                      new Date(historyCursor.getFullYear(), historyCursor.getMonth() - 1, 1),
+                    )
+                  }
+                  className="rounded-full border border-[var(--line-soft)] bg-[var(--panel-strong)] px-3 py-2 text-sm text-[var(--ink-soft)]"
+                >
+                  ←
+                </button>
+                <p className="font-serif text-xl capitalize">{formatMonthLabel(historyCursor)}</p>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setHistoryCursor(
+                      new Date(historyCursor.getFullYear(), historyCursor.getMonth() + 1, 1),
+                    )
+                  }
+                  className="rounded-full border border-[var(--line-soft)] bg-[var(--panel-strong)] px-3 py-2 text-sm text-[var(--ink-soft)]"
+                >
+                  →
+                </button>
               </div>
 
-              {state.preferences.calendarView === "day" ? (
-                <DayView
-                  state={state}
-                  isoDate={selectedDate}
-                  onSelectDate={(iso) => {
-                    setSelectedDate(iso);
-                    setActiveTab("tracker");
-                  }}
-                />
-              ) : null}
-
-              {state.preferences.calendarView === "week" ? (
-                <div className="grid gap-3 sm:grid-cols-7">
-                  {weeklyDates.map((date) => {
-                    const iso = toIsoDate(date);
-                    const day = getTrainingDayFromDate(date);
-                    const session = getSessionForDate(state, iso);
-                    const status = getSessionStatus(day, session);
-                    return (
-                      <button
-                        key={iso}
-                        type="button"
-                        onClick={() => setSelectedDate(iso)}
-                        className="rounded-[1.35rem] border border-[var(--line-soft)] bg-[var(--panel-strong)] p-4 text-left transition hover:border-[var(--line-strong)]"
-                      >
-                        <p className="text-xs uppercase tracking-[0.18em] text-[var(--ink-soft)]">
-                          {formatShortLabel(date)}
-                        </p>
-                        <p className="mt-3 text-lg font-medium">{day.focus}</p>
-                        <div
-                          className="mt-4 h-2 rounded-full"
-                          style={{ backgroundColor: getStatusTone(status) }}
-                        />
-                        <p className="mt-3 text-sm text-[var(--ink-soft)]">
-                          {getCompletionPercent(day, session)}%
-                        </p>
-                      </button>
-                    );
-                  })}
-                </div>
-              ) : null}
-
-              {state.preferences.calendarView === "month" ? (
-                <div className="grid gap-2 sm:grid-cols-7">
-                  {["Lun", "Mar", "Mie", "Jue", "Vie", "Sab", "Dom"].map((label) => (
-                    <p
-                      key={label}
-                      className="px-2 pb-1 text-xs uppercase tracking-[0.18em] text-[var(--ink-soft)]"
-                    >
-                      {label}
-                    </p>
-                  ))}
-                  {getMonthMatrix(calendarCursor).map((date) => {
-                    const iso = toIsoDate(date);
-                    const day = getTrainingDayFromDate(date);
-                    const session = getSessionForDate(state, iso);
-                    const status = getSessionStatus(day, session);
-                    const isCurrentMonth = date.getMonth() === calendarCursor.getMonth();
-                    const isSelected = iso === selectedDate;
-                    return (
-                      <button
-                        key={iso}
-                        type="button"
-                        onClick={() => setSelectedDate(iso)}
-                        className={`rounded-[1.1rem] border p-3 text-left transition ${
-                          isSelected
-                            ? "border-[var(--ember)] bg-[var(--panel-highlight)]"
-                            : "border-[var(--line-soft)] bg-[var(--panel-strong)]"
-                        } ${isCurrentMonth ? "opacity-100" : "opacity-45"}`}
-                      >
-                        <div className="flex items-center justify-between gap-2">
-                          <p className="text-sm font-medium">{date.getDate()}</p>
-                          <span
-                            className="h-2.5 w-2.5 rounded-full"
-                            style={{ backgroundColor: getStatusTone(status) }}
-                          />
-                        </div>
-                        <p className="mt-6 text-[11px] uppercase tracking-[0.16em] text-[var(--ink-soft)]">
-                          {day.shortLabel}
-                        </p>
-                      </button>
-                    );
-                  })}
-                </div>
-              ) : null}
-
-              {state.preferences.calendarView === "year" ? (
-                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                  {getYearMonths(calendarCursor).map((month) => (
+              <div className="grid grid-cols-7 gap-1">
+                {["L", "M", "X", "J", "V", "S", "D"].map((label) => (
+                  <p
+                    key={label}
+                    className="pb-1 text-center text-[10px] uppercase tracking-[0.16em] text-[var(--ink-soft)]"
+                  >
+                    {label}
+                  </p>
+                ))}
+                {getMonthMatrix(historyCursor).map((date) => {
+                  const iso = toIsoDate(date);
+                  const day = getTrainingDayFromDate(date);
+                  const session = getSessionForDate(state, iso);
+                  const status = getSessionStatus(day, session);
+                  const isCurrentMonth = date.getMonth() === historyCursor.getMonth();
+                  const isSelected = iso === historyDate;
+                  return (
                     <button
-                      key={month.toISOString()}
+                      key={iso}
                       type="button"
-                      onClick={() => {
-                        setCalendarCursor(month);
-                        setState((current) => ({
-                          ...current,
-                          preferences: {
-                            ...current.preferences,
-                            calendarView: "month",
-                          },
-                        }));
-                      }}
-                      className="rounded-[1.5rem] border border-[var(--line-soft)] bg-[var(--panel-strong)] p-4 text-left"
+                      onClick={() => setHistoryDate(iso)}
+                      className={`aspect-square rounded-lg border transition ${
+                        isSelected
+                          ? "border-[var(--ember)] bg-[var(--panel-highlight)]"
+                          : "border-transparent bg-[var(--panel-strong)]"
+                      } ${isCurrentMonth ? "opacity-100" : "opacity-25"}`}
                     >
-                      <p className="font-serif text-2xl capitalize">{formatMonthLabel(month)}</p>
-                      <div className="mt-4 grid grid-cols-7 gap-1">
-                        {getMonthMatrix(month).slice(0, 35).map((date) => {
-                          const iso = toIsoDate(date);
-                          const day = getTrainingDayFromDate(date);
-                          const session = getSessionForDate(state, iso);
-                          const status = getSessionStatus(day, session);
-                          const isCurrentMonth = date.getMonth() === month.getMonth();
-                          return (
-                            <span
-                              key={iso}
-                              className={`aspect-square rounded-[0.3rem] ${isCurrentMonth ? "opacity-100" : "opacity-30"}`}
-                              style={{ backgroundColor: getStatusTone(status) || "rgba(255,255,255,0.06)" }}
-                            />
-                          );
-                        })}
-                      </div>
+                      <p className="text-center text-xs">{date.getDate()}</p>
+                      <div
+                        className="mx-auto mt-1 h-1.5 w-1.5 rounded-full"
+                        style={{
+                          backgroundColor: getStatusTone(status) || "transparent",
+                        }}
+                      />
                     </button>
-                  ))}
-                </div>
-              ) : null}
-            </SurfaceCard>
+                  );
+                })}
+              </div>
+            </div>
 
-            <SurfaceCard title="Lectura del dia">
-              <DayView
-                state={state}
-                isoDate={selectedDate}
-                onSelectDate={(iso) => {
-                  setSelectedDate(iso);
-                  setActiveTab("tracker");
-                }}
-              />
-            </SurfaceCard>
+            {/* Dia seleccionado */}
+            <HistoryDayView state={state} isoDate={historyDate} />
           </section>
         ) : null}
 
+        {/* Tab: Perfil */}
         {activeTab === "profile" ? (
-          <section className="grid gap-6 lg:grid-cols-[0.85fr_1.15fr]">
-            <SurfaceCard title="Perfil base">
-              <div className="space-y-4">
+          <section className="flex flex-col gap-4">
+            {/* Stats */}
+            <div className="grid grid-cols-2 gap-3">
+              <StatCard label="Racha" value={`${stats.streak}`} hint={`Max ${stats.maxStreak}`} />
+              <StatCard label="Nivel" value={`${stats.level}`} hint={`${stats.totalXp} XP`} />
+              <StatCard
+                label="Consistencia"
+                value={`${stats.consistency}%`}
+                hint={`${stats.completedDays} sesiones`}
+              />
+              <StatCard
+                label="Esta semana"
+                value={`${stats.thisWeekCompleted}/${stats.thisWeekScheduled}`}
+                hint="dias completados"
+              />
+            </div>
+
+            {/* Progreso de cargas */}
+            <div className="rounded-2xl border border-[var(--line-soft)] bg-[var(--panel)] p-5">
+              <p className="text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">
+                Progreso de cargas
+              </p>
+              <div className="mt-4 grid gap-3">
+                {getExerciseProgressSummaries(state).length ? (
+                  getExerciseProgressSummaries(state)
+                    .slice(0, 6)
+                    .map((item) => (
+                      <div
+                        key={item.key}
+                        className="rounded-xl border border-[var(--line-soft)] bg-[var(--panel-strong)] px-4 py-3"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-sm font-medium">{item.name}</p>
+                          <p className="text-xs text-[var(--ink-soft)]">{item.latestDate}</p>
+                        </div>
+                        <p className="mt-1 text-xs text-[var(--ink-soft)]">{item.deltaLabel}</p>
+                      </div>
+                    ))
+                ) : (
+                  <p className="text-sm text-[var(--ink-soft)]">
+                    Cuando registres pesos por set, el progreso aparecera aqui.
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {/* Datos personales */}
+            <div className="rounded-2xl border border-[var(--line-soft)] bg-[var(--panel)] p-5">
+              <p className="text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">
+                Perfil
+              </p>
+              <div className="mt-4 grid gap-3">
                 <ProfileField
                   label="Nombre"
                   value={state.user.name}
-                  onChange={(value) => updateUserField("name", value)}
+                  onChange={(v) => updateUserField("name", v)}
                 />
                 <div className="grid grid-cols-2 gap-3">
                   <ProfileField
-                    label="Edad"
-                    value={String(state.user.age)}
-                    onChange={(value) => updateUserField("age", Number(value) || 0)}
+                    label="Peso (lb)"
+                    value={String(state.user.weightLb)}
+                    onChange={(v) => updateUserField("weightLb", Number(v) || 0)}
                   />
                   <ProfileField
-                    label="Peso actual (lb)"
-                    value={String(state.user.weightLb)}
-                    onChange={(value) => updateUserField("weightLb", Number(value) || 0)}
+                    label="Altura (m)"
+                    value={String(state.user.heightM)}
+                    onChange={(v) => updateUserField("heightM", Number(v) || 0)}
                   />
                 </div>
-                <ProfileField
-                  label="Altura (m)"
-                  value={String(state.user.heightM)}
-                  onChange={(value) => updateUserField("heightM", Number(value) || 0)}
-                />
                 <ProfileField
                   label="Gym"
                   value={state.user.gym}
-                  onChange={(value) => updateUserField("gym", value)}
+                  onChange={(v) => updateUserField("gym", v)}
                 />
-                <ProfileField
-                  label="Experiencia"
-                  value={state.user.experience}
-                  onChange={(value) => updateUserField("experience", value)}
-                />
-                <label className="grid gap-2">
-                  <span className="text-sm uppercase tracking-[0.18em] text-[var(--ink-soft)]">
-                    Objetivo actual
-                  </span>
-                  <textarea
-                    rows={5}
-                    value={state.user.goal}
-                    onChange={(event) => updateUserField("goal", event.target.value)}
-                    className="rounded-[1.2rem] border border-[var(--line-soft)] bg-[var(--panel-strong)] px-4 py-4 text-sm leading-7 text-[var(--ink-strong)] outline-none transition focus:border-[var(--ember)]"
-                  />
-                </label>
               </div>
-            </SurfaceCard>
-
-            <div className="grid gap-4">
-              <SurfaceCard title="Metricas derivadas">
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <StatCard label="XP total" value={`${stats.totalXp}`} hint="acumulado" />
-                  <StatCard label="Nivel" value={`${stats.level}`} hint={`${stats.currentLevelXp}/${stats.nextLevelXp}`} />
-                  <StatCard label="Dias completos" value={`${stats.completedDays}`} hint=">= 50% de avance" />
-                  <StatCard label="Consistencia" value={`${stats.consistency}%`} hint={`${stats.completedDays}/${Math.max(stats.scheduledDaysSeen, 1)} sesiones`} />
-                </div>
-              </SurfaceCard>
-
-              <SurfaceCard title="Progreso de cargas">
-                <div className="grid gap-3">
-                  {exerciseProgress.length ? (
-                    exerciseProgress.slice(0, 8).map((item) => (
-                      <div
-                        key={item.key}
-                        className="rounded-[1.25rem] border border-[var(--line-soft)] bg-[var(--panel-strong)] px-4 py-4"
-                      >
-                        <div className="flex items-start justify-between gap-4">
-                          <div>
-                            <p className="text-sm uppercase tracking-[0.16em] text-[var(--ink-soft)]">
-                              {item.group}
-                            </p>
-                            <p className="mt-1 text-base font-medium">{item.name}</p>
-                          </div>
-                          <p className="text-right text-xs uppercase tracking-[0.16em] text-[var(--ink-soft)]">
-                            {item.latestDate}
-                          </p>
-                        </div>
-                        <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                          <div className="rounded-[1rem] border border-[var(--line-soft)] bg-[var(--panel)] px-3 py-3">
-                            <p className="text-[11px] uppercase tracking-[0.16em] text-[var(--ink-soft)]">
-                              Ultimo registro
-                            </p>
-                            <p className="mt-2 text-sm text-[var(--ink-strong)]">{item.latestWeights}</p>
-                          </div>
-                          <div className="rounded-[1rem] border border-[var(--line-soft)] bg-[var(--panel)] px-3 py-3">
-                            <p className="text-[11px] uppercase tracking-[0.16em] text-[var(--ink-soft)]">
-                              Comparacion
-                            </p>
-                            <p className="mt-2 text-sm text-[var(--ink-strong)]">{item.deltaLabel}</p>
-                          </div>
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <p className="text-sm leading-7 text-[var(--ink-soft)]">
-                      Cuando empieces a registrar pesos por set, aqui veras el ultimo registro y la comparacion contra la sesion anterior.
-                    </p>
-                  )}
-                </div>
-              </SurfaceCard>
-
-              <SurfaceCard title="Frecuencia actual">
-                <div className="grid gap-3">
-                  {listTrainingDays().map((day) => (
-                    <div
-                      key={day.id}
-                      className="rounded-[1.25rem] border border-[var(--line-soft)] bg-[var(--panel-strong)] px-4 py-4"
-                    >
-                      <div className="flex items-center justify-between gap-3">
-                        <div>
-                          <p className="text-sm uppercase tracking-[0.18em] text-[var(--ink-soft)]">
-                            {day.label}
-                          </p>
-                          <p className="mt-1 text-lg font-medium">{day.focus}</p>
-                        </div>
-                        <p className="text-sm text-[var(--ink-soft)]">{day.exercises.length} ejercicios</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </SurfaceCard>
             </div>
-          </section>
-        ) : null}
 
-        {activeTab === "settings" ? (
-          <section className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
-            <SurfaceCard title="Preferencias">
-              <div className="grid gap-3">
-                <ToggleRow
-                  label="Mostrar detalles tecnicos abiertos"
-                  value={state.preferences.showDetails}
-                  onToggle={() => togglePreference("showDetails")}
-                />
-                <ToggleRow
-                  label="Sonido habilitado"
-                  value={state.preferences.soundEnabled}
-                  onToggle={() => togglePreference("soundEnabled")}
-                />
+            {/* Sistema */}
+            <div className="rounded-2xl border border-[var(--line-soft)] bg-[var(--panel)] p-5">
+              <p className="text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">
+                Sistema
+              </p>
+              <div className="mt-4 flex items-center justify-between text-sm">
+                <span className="text-[var(--ink-soft)]">Guardado</span>
+                <span className="capitalize">
+                  {storageMode === "database"
+                    ? "base de datos"
+                    : storageMode === "checking"
+                      ? "verificando"
+                      : "local"}
+                </span>
               </div>
-            </SurfaceCard>
-
-            <SurfaceCard title="Estado del sistema">
-              <div className="space-y-4">
-                <p className="text-sm leading-7 text-[var(--ink-soft)]">
-                  Esta version ya adapta la app a tu split real. Sostener disciplina real vale mas que un dia perfecto y tres dias perdidos.
-                </p>
-                <div className="grid gap-3">
-                  <StatusLine
-                    label="Modo de guardado"
-                    value={
-                      storageMode === "database"
-                        ? "base de datos"
-                        : storageMode === "checking"
-                          ? "verificando"
-                          : "fallback local"
-                    }
-                  />
-                  <StatusLine
-                    label="Estado de sincronizacion"
-                    value={
-                      saveState === "saving"
-                        ? "guardando"
-                        : saveState === "saved"
-                          ? "guardado"
-                          : saveState === "error"
-                            ? "error"
-                            : "inactivo"
-                    }
-                  />
-                  <StatusLine label="Rutina fuente de verdad" value="Actualizada" />
-                  <StatusLine label="Vista calendario" value={state.preferences.calendarView} />
-                </div>
-                <button
-                  type="button"
-                  onClick={resetAllData}
-                  className="rounded-full border border-[rgba(255,95,87,0.4)] bg-[rgba(255,95,87,0.12)] px-5 py-3 text-sm font-medium text-[var(--danger)] transition hover:bg-[rgba(255,95,87,0.18)]"
-                >
-                  Reiniciar datos locales
-                </button>
-              </div>
-            </SurfaceCard>
+              <button
+                type="button"
+                onClick={resetAllData}
+                className="mt-4 w-full rounded-full border border-[rgba(255,95,87,0.4)] bg-[rgba(255,95,87,0.08)] py-3 text-sm text-[var(--danger)] transition hover:bg-[rgba(255,95,87,0.14)]"
+              >
+                Reiniciar datos
+              </button>
+            </div>
           </section>
         ) : null}
       </div>
 
-      <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-[var(--line-soft)] bg-[rgba(11,10,10,0.88)] backdrop-blur-xl">
-        <div className="mx-auto grid max-w-7xl grid-cols-5 gap-2 px-3 pb-[calc(0.75rem+var(--safe-bottom))] pt-3 sm:px-6">
+      {/* Nav */}
+      <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-[var(--line-soft)] bg-[rgba(11,10,10,0.9)] backdrop-blur-xl">
+        <div className="mx-auto grid max-w-2xl grid-cols-3 gap-2 px-4 pb-[calc(0.75rem+var(--safe-bottom))] pt-3">
           {tabs.map((tab) => (
             <button
               key={tab.id}
               type="button"
               onClick={() => setActiveTab(tab.id)}
-              className={`rounded-[1.25rem] px-3 py-3 text-center text-xs uppercase tracking-[0.16em] transition sm:text-sm ${
+              className={`rounded-2xl px-3 py-3 text-center text-sm uppercase tracking-[0.18em] transition ${
                 activeTab === tab.id
                   ? "bg-[var(--ember)] text-white"
                   : "text-[var(--ink-soft)]"
               }`}
             >
-              <span className="block sm:hidden">{tab.short}</span>
-              <span className="hidden sm:block">{tab.label}</span>
+              {tab.label}
             </button>
           ))}
         </div>
@@ -1364,83 +792,12 @@ export function MusculitApp() {
   );
 }
 
-function SurfaceCard({
-  title,
-  children,
-}: {
-  title: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className="rounded-[1.9rem] border border-[var(--line-soft)] bg-[var(--panel)] p-5 shadow-[0_24px_80px_rgba(0,0,0,0.16)] sm:p-6">
-      <p className="text-xs uppercase tracking-[0.24em] text-[var(--ink-soft)]">
-        {title}
-      </p>
-      <div className="mt-4">{children}</div>
-    </section>
-  );
-}
-
-function StatCard({
-  label,
-  value,
-  hint,
-}: {
-  label: string;
-  value: string;
-  hint: string;
-}) {
-  return (
-    <div className="rounded-[1.5rem] border border-[var(--line-soft)] bg-[var(--panel-strong)] p-4">
-      <p className="text-xs uppercase tracking-[0.18em] text-[var(--ink-soft)]">
-        {label}
-      </p>
-      <p className="mt-3 font-serif text-3xl">{value}</p>
-      <p className="mt-2 text-sm text-[var(--ink-soft)]">{hint}</p>
-    </div>
-  );
-}
-
-function MetricPill({
-  label,
-  value,
-}: {
-  label: string;
-  value: string;
-}) {
-  return (
-    <div className="flex items-center justify-between rounded-full border border-[var(--line-soft)] bg-[var(--panel)] px-4 py-3 text-sm">
-      <span className="text-[var(--ink-soft)]">{label}</span>
-      <span className="font-medium text-[var(--ink-strong)]">{value}</span>
-    </div>
-  );
-}
-
-function InfoRow({
-  label,
-  value,
-}: {
-  label: string;
-  value: string;
-}) {
-  return (
-    <div className="rounded-[1rem] border border-[var(--line-soft)] bg-[var(--panel)] px-3 py-3 text-sm leading-7 text-[var(--ink-soft)]">
-      <span className="mr-2 text-xs uppercase tracking-[0.18em] text-[var(--ink-strong)]">
-        {label}
-      </span>
-      {value}
-    </div>
-  );
-}
-
-function DayView({
+function HistoryDayView({
   state,
   isoDate,
-  onSelectDate,
 }: {
   state: AppState;
   isoDate: string;
-  onSelectDate: (isoDate: string) => void;
 }) {
   const date = fromIsoDate(isoDate);
   const day = getTrainingDayFromDate(date);
@@ -1449,55 +806,69 @@ function DayView({
   const status = getSessionStatus(day, session);
 
   return (
-    <div className="space-y-4">
-      <div className="rounded-[1.45rem] border border-[var(--line-soft)] bg-[var(--panel-strong)] p-4">
-        <p className="text-xs uppercase tracking-[0.18em] text-[var(--ink-soft)]">
-          {formatDisplayDate(date)}
-        </p>
-        <p className="mt-2 font-serif text-3xl">{day.focus}</p>
-        <div className="mt-4 flex flex-wrap items-center gap-3">
-          <span
-            className="rounded-full px-3 py-1 text-xs uppercase tracking-[0.18em]"
-            style={{
-              backgroundColor: getStatusTone(status),
-              color: status === "pending" ? "var(--ink-soft)" : "white",
-            }}
-          >
-            {statusLabel(status)}
-          </span>
-          <span className="text-sm text-[var(--ink-soft)]">{percent}% completado</span>
+    <div className="rounded-2xl border border-[var(--line-soft)] bg-[var(--panel)] p-5">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-xs uppercase tracking-[0.18em] text-[var(--ink-soft)]">
+            {formatDisplayDate(date)}
+          </p>
+          <p className="mt-1 font-serif text-2xl">{day.focus}</p>
         </div>
+        <span
+          className="rounded-full px-3 py-1 text-xs uppercase tracking-[0.16em]"
+          style={{
+            backgroundColor: getStatusTone(status),
+            color: status === "pending" ? "var(--ink-soft)" : "white",
+          }}
+        >
+          {statusLabel(status)}
+        </span>
       </div>
 
-      <div className="grid gap-2">
-        {day.type === "training" ? (
-          day.exercises.map((exercise) => {
+      {day.type === "training" && (
+        <div className="mt-4 grid gap-2">
+          {day.exercises.map((exercise) => {
             const done = session.completedExerciseIds.includes(exercise.id);
+            const weights = normalizeSetWeights(session.setWeights?.[exercise.id]).filter(Boolean);
             return (
-              <button
+              <div
                 key={exercise.id}
-                type="button"
-                onClick={() => onSelectDate(isoDate)}
-                className="flex items-center justify-between gap-4 rounded-[1.2rem] border border-[var(--line-soft)] bg-[var(--panel-strong)] px-4 py-3 text-left"
+                className="flex items-center justify-between gap-3 rounded-xl border border-[var(--line-soft)] bg-[var(--panel-strong)] px-4 py-3"
               >
-                <div>
-                  <p className="text-sm font-medium">{exercise.name}</p>
-                  <p className="mt-1 text-xs uppercase tracking-[0.16em] text-[var(--ink-soft)]">
-                    {exercise.group}
-                  </p>
+                <div className="flex items-center gap-2">
+                  <span className={done ? "text-[var(--status-good)]" : "text-[var(--ink-soft)]"}>
+                    {done ? "✓" : "○"}
+                  </span>
+                  <p className="text-sm">{exercise.name}</p>
                 </div>
-                <span className={done ? "text-[var(--status-good)]" : "text-[var(--ink-soft)]"}>
-                  {done ? "✓" : "○"}
-                </span>
-              </button>
+                {weights.length > 0 && (
+                  <p className="text-xs text-[var(--ink-soft)]">{weights.join(" · ")}</p>
+                )}
+              </div>
             );
-          })
-        ) : (
-          <p className="rounded-[1.2rem] border border-[var(--line-soft)] bg-[var(--panel-strong)] px-4 py-4 text-sm leading-7 text-[var(--ink-soft)]">
-            Dia sin entrenamiento. Recuperacion total.
-          </p>
-        )}
-      </div>
+          })}
+          {percent > 0 && (
+            <p className="mt-1 text-xs text-[var(--ink-soft)]">
+              {percent}% completado
+              {session.journal ? ` · "${session.journal.slice(0, 60)}${session.journal.length > 60 ? "..." : ""}"` : ""}
+            </p>
+          )}
+        </div>
+      )}
+
+      {day.type === "rest" && (
+        <p className="mt-3 text-sm text-[var(--ink-soft)]">Dia de descanso.</p>
+      )}
+    </div>
+  );
+}
+
+function StatCard({ label, value, hint }: { label: string; value: string; hint: string }) {
+  return (
+    <div className="rounded-2xl border border-[var(--line-soft)] bg-[var(--panel)] p-4">
+      <p className="text-xs uppercase tracking-[0.18em] text-[var(--ink-soft)]">{label}</p>
+      <p className="mt-2 font-serif text-3xl">{value}</p>
+      <p className="mt-1 text-xs text-[var(--ink-soft)]">{hint}</p>
     </div>
   );
 }
@@ -1512,95 +883,31 @@ function ProfileField({
   onChange: (value: string) => void;
 }) {
   return (
-    <label className="grid gap-2">
-      <span className="text-sm uppercase tracking-[0.18em] text-[var(--ink-soft)]">
-        {label}
-      </span>
+    <label className="grid gap-1.5">
+      <span className="text-xs uppercase tracking-[0.18em] text-[var(--ink-soft)]">{label}</span>
       <input
         value={value}
-        onChange={(event) => onChange(event.target.value)}
-        className="rounded-[1.2rem] border border-[var(--line-soft)] bg-[var(--panel-strong)] px-4 py-3 text-sm text-[var(--ink-strong)] outline-none transition focus:border-[var(--ember)]"
+        onChange={(e) => onChange(e.target.value)}
+        className="rounded-xl border border-[var(--line-soft)] bg-[var(--panel-strong)] px-4 py-3 text-sm text-[var(--ink-strong)] outline-none transition focus:border-[var(--ember)]"
       />
     </label>
   );
 }
 
-function ToggleRow({
-  label,
-  value,
-  onToggle,
-}: {
-  label: string;
-  value: boolean;
-  onToggle: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onToggle}
-      className="flex items-center justify-between rounded-[1.35rem] border border-[var(--line-soft)] bg-[var(--panel-strong)] px-4 py-4 text-left"
-    >
-      <span className="text-sm">{label}</span>
-      <span
-        className={`rounded-full px-3 py-1 text-xs uppercase tracking-[0.18em] ${
-          value ? "bg-[var(--status-good)] text-white" : "bg-[var(--panel)] text-[var(--ink-soft)]"
-        }`}
-      >
-        {value ? "on" : "off"}
-      </span>
-    </button>
-  );
-}
-
-function StatusLine({
-  label,
-  value,
-}: {
-  label: string;
-  value: string;
-}) {
-  return (
-    <div className="flex items-center justify-between rounded-[1.2rem] border border-[var(--line-soft)] bg-[var(--panel-strong)] px-4 py-3 text-sm">
-      <span className="text-[var(--ink-soft)]">{label}</span>
-      <span className="font-medium capitalize">{value}</span>
-    </div>
-  );
-}
-
 function statusLabel(status: string) {
-  if (status === "complete") {
-    return "Completo";
-  }
-  if (status === "partial") {
-    return "Parcial fuerte";
-  }
-  if (status === "started") {
-    return "Empezado";
-  }
-  if (status === "rest") {
-    return "Descanso";
-  }
+  if (status === "complete") return "Completo";
+  if (status === "partial") return "Parcial";
+  if (status === "started") return "Empezado";
+  if (status === "rest") return "Descanso";
   return "Pendiente";
 }
 
-function getNearestDateForDay(dayId: ReturnType<typeof getDayById>["id"], fromDate: Date) {
-  const targetIndex = weeklySplit.findIndex((day) => day.id === dayId);
-  const currentIndex = weeklySplit.findIndex((day) => day.id === getDayIdFromDate(fromDate));
-  const delta = targetIndex - currentIndex;
-  return shiftDate(fromDate, delta < 0 ? delta + 7 : delta);
-}
-
 function loadInitialState() {
-  if (typeof window === "undefined") {
-    return initialState;
-  }
+  if (typeof window === "undefined") return initialState;
 
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) {
-      return initialState;
-    }
-
+    if (!raw) return initialState;
     const parsed = JSON.parse(raw) as Partial<AppState>;
     return normalizeLoadedState({
       user: { ...initialState.user, ...(parsed.user ?? {}) },
@@ -1634,8 +941,8 @@ function normalizeLoadedState(raw: AppState) {
       return [
         isoDate,
         {
-          ...createLocalSessionFallback(isoDate, dayId),
           ...session,
+          date: isoDate,
           dayId,
           setWeights,
         },
@@ -1650,18 +957,6 @@ function normalizeLoadedState(raw: AppState) {
   } satisfies AppState;
 }
 
-function createLocalSessionFallback(isoDate: string, dayId: DayId) {
-  return {
-    date: isoDate,
-    dayId,
-    completedExerciseIds: [],
-    completedCardio: false,
-    journal: "",
-    setWeights: {},
-    closedAt: null,
-  };
-}
-
 function formatSeconds(totalSeconds: number) {
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
@@ -1669,22 +964,16 @@ function formatSeconds(totalSeconds: number) {
 }
 
 function primeAudio(audioContextRef: { current: AudioContext | null }) {
-  if (typeof window === "undefined" || !("AudioContext" in window)) {
-    return;
-  }
-
+  if (typeof window === "undefined" || !("AudioContext" in window)) return;
   if (!audioContextRef.current) {
     audioContextRef.current = new window.AudioContext();
   }
-
   void audioContextRef.current.resume();
 }
 
 function playTimerSound(audioContextRef: { current: AudioContext | null }) {
   const context = audioContextRef.current;
-  if (!context) {
-    return;
-  }
+  if (!context) return;
 
   const oscillator = context.createOscillator();
   const gain = context.createGain();
@@ -1692,7 +981,6 @@ function playTimerSound(audioContextRef: { current: AudioContext | null }) {
   oscillator.type = "sine";
   oscillator.frequency.setValueAtTime(880, context.currentTime);
   oscillator.frequency.exponentialRampToValueAtTime(660, context.currentTime + 0.35);
-
   gain.gain.setValueAtTime(0.0001, context.currentTime);
   gain.gain.exponentialRampToValueAtTime(0.16, context.currentTime + 0.02);
   gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.42);
@@ -1707,9 +995,7 @@ function getExerciseProgressSummaries(state: AppState) {
   const uniqueExercises = new Map<string, { name: string; group: string }>();
 
   for (const day of weeklySplit) {
-    if (day.type !== "training") {
-      continue;
-    }
+    if (day.type !== "training") continue;
     for (const exercise of day.exercises) {
       const key = `${exercise.name}__${exercise.group}`;
       if (!uniqueExercises.has(key)) {
@@ -1735,11 +1021,7 @@ function getExerciseProgressSummaries(state: AppState) {
           (exercise) =>
             exercise.name === exerciseMeta.name && exercise.group === exerciseMeta.group,
         );
-
-        if (!matchingExercise) {
-          return null;
-        }
-
+        if (!matchingExercise) return null;
         return {
           isoDate,
           weights: normalizeSetWeights(session.setWeights?.[matchingExercise.id]).filter(Boolean),
@@ -1749,9 +1031,7 @@ function getExerciseProgressSummaries(state: AppState) {
       .filter((entry) => entry.weights.length > 0)
       .sort((a, b) => b.isoDate.localeCompare(a.isoDate));
 
-    if (!entries.length) {
-      continue;
-    }
+    if (!entries.length) continue;
 
     const latest = entries[0];
     const previous = entries[1];
@@ -1763,7 +1043,7 @@ function getExerciseProgressSummaries(state: AppState) {
       latestWeights: latest.weights.join(" · "),
       deltaLabel: previous
         ? buildDeltaLabel(latest.weights, previous.weights)
-        : "Primer registro guardado",
+        : "Primer registro",
     });
   }
 
@@ -1771,34 +1051,25 @@ function getExerciseProgressSummaries(state: AppState) {
 }
 
 function buildDeltaLabel(latest: string[], previous: string[]) {
-  const latestAverage = averageNumericWeight(latest);
-  const previousAverage = averageNumericWeight(previous);
+  const latestAvg = averageNumericWeight(latest);
+  const previousAvg = averageNumericWeight(previous);
 
-  if (latestAverage === null || previousAverage === null) {
-    return `Antes: ${previous.join(" · ")}`;
-  }
+  if (latestAvg === null || previousAvg === null) return `Antes: ${previous.join(" · ")}`;
 
-  const delta = Number((latestAverage - previousAverage).toFixed(1));
-  if (delta > 0) {
-    return `Subiste aprox. ${delta} lb en promedio`;
-  }
-  if (delta < 0) {
-    return `Bajaste aprox. ${Math.abs(delta)} lb en promedio`;
-  }
-  return "Misma carga promedio que la sesion anterior";
+  const delta = Number((latestAvg - previousAvg).toFixed(1));
+  if (delta > 0) return `+${delta} lb promedio`;
+  if (delta < 0) return `${delta} lb promedio`;
+  return "Misma carga";
 }
 
 function averageNumericWeight(weights: string[]) {
   const values = weights
-    .map((weight) => {
-      const match = weight.match(/-?\d+(?:\.\d+)?/);
+    .map((w) => {
+      const match = w.match(/-?\d+(?:\.\d+)?/);
       return match ? Number(match[0]) : null;
     })
-    .filter((value): value is number => value !== null && Number.isFinite(value));
+    .filter((v): v is number => v !== null && Number.isFinite(v));
 
-  if (!values.length) {
-    return null;
-  }
-
-  return values.reduce((sum, value) => sum + value, 0) / values.length;
+  if (!values.length) return null;
+  return values.reduce((sum, v) => sum + v, 0) / values.length;
 }

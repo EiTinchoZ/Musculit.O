@@ -31,9 +31,12 @@
 
 * {
   box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
 }
 
 html {
+  height: 100%;
+  overscroll-behavior: none;
   background:
     radial-gradient(circle at top left, rgba(199, 100, 45, 0.12), transparent 24%),
     radial-gradient(circle at 82% 14%, rgba(200, 161, 93, 0.12), transparent 18%),
@@ -43,15 +46,39 @@ html {
 
 body {
   min-height: 100vh;
+  min-height: 100dvh;
+  overscroll-behavior: none;
   color: var(--ink-strong);
   font-family: var(--font-body), sans-serif;
   -webkit-font-smoothing: antialiased;
+  -webkit-text-size-adjust: 100%;
 }
 
 button,
 input,
 textarea {
   font: inherit;
+}
+
+/* Previene zoom en inputs en iOS Safari */
+input,
+textarea,
+select {
+  font-size: max(16px, 1em);
+}
+
+/* Feedback tactil en botones */
+@media (hover: none) and (pointer: coarse) {
+  button:active {
+    opacity: 0.75;
+    transform: scale(0.97);
+    transition: opacity 80ms ease, transform 80ms ease;
+  }
+}
+
+/* Transicion base para botones */
+button {
+  transition: opacity 160ms ease, transform 160ms ease, background-color 160ms ease, border-color 160ms ease, color 160ms ease;
 }
 
 summary::-webkit-details-marker {
@@ -62,10 +89,12 @@ summary::-webkit-details-marker {
   background: rgba(231, 120, 55, 0.28);
 }
 
-@supports (height: 100dvh) {
-  body {
-    min-height: 100dvh;
-  }
+/* Sin seleccion de texto en elementos de UI */
+button,
+nav,
+label {
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .fire-chip {

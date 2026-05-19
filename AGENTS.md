@@ -77,10 +77,10 @@ Claude Code y Codex comparten repositorio, pero no comparten rol.
 
 ## Estado actual
 
-- Repo local inicializado y organizado para publicación.
-- Rutina semanal consolidada.
-- App local interactiva con tracker, calendario, perfil y ajustes.
-- Pesos por set disponibles por ejercicio.
-- Timer de descanso integrado.
-- Persistencia progresiva preparada con API + Prisma + fallback local.
+- Rutina semanal reestructurada: Lun/Jue descanso, Mar Pull, Mié Piernas, Vie Cardio con Cata, Sáb Push con Cata, Dom Piernas con Cata.
+- Miercoles y Domingo tienen los mismos ejercicios de piernas (9 ejercicios).
+- Interfaz simplificada: 3 tabs (Hoy / Historial / Perfil) en lugar de 5.
+- Tab Hoy = tracker del día actual integrado. Sin home separado.
+- Timer de descanso, pesos por set y journal intactos.
+- Persistencia progresiva con API + Prisma + fallback local.
 - Proyecto listo para conectarse a GitHub y luego desplegarse en Vercel con Postgres.

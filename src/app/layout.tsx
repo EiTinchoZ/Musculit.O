@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Bricolage_Grotesque, Newsreader } from "next/font/google";
 import "./globals.css";
 
@@ -12,10 +12,23 @@ const displayFont = Newsreader({
   subsets: ["latin"],
 });
 
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  viewportFit: "cover",
+  themeColor: "#0f0c0b",
+};
+
 export const metadata: Metadata = {
-  title: "Musculit",
-  description:
-    "Sistema local de tracking de gimnasio, progresión de cargas y journal personal.",
+  title: "Musculit.O",
+  description: "Tracking de gym, progresion de cargas y journal personal.",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "Musculit.O",
+  },
 };
 
 export default function RootLayout({
