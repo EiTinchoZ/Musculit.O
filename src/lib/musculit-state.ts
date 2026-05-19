@@ -14,6 +14,7 @@ export type Preferences = {
   showDetails: boolean;
   soundEnabled: boolean;
   calendarView: "day" | "week" | "month" | "year";
+  weightUnit: "lb" | "kg";
 };
 
 export type SessionRecord = {
@@ -63,6 +64,7 @@ export const initialState: AppState = {
     showDetails: false,
     soundEnabled: false,
     calendarView: "month",
+    weightUnit: "lb",
   },
   sessions: {},
 };

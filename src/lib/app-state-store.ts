@@ -145,6 +145,7 @@ async function loadFromDatabase() {
       showDetails: user.showDetails,
       soundEnabled: user.soundEnabled,
       calendarView: normalizeCalendarView(user.calendarView),
+      weightUnit: normalizeWeightUnit((user as Record<string, unknown>).weightUnit),
     },
     sessions,
   });
@@ -305,4 +306,9 @@ function normalizeCalendarView(value: string) {
   }
 
   return initialState.preferences.calendarView;
+}
+
+function normalizeWeightUnit(value: unknown): "lb" | "kg" {
+  if (value === "lb" || value === "kg") return value;
+  return initialState.preferences.weightUnit;
 }

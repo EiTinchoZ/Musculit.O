@@ -242,6 +242,37 @@ export function MusculitApp() {
     setTimerBurst(false);
   }
 
+  function convertWeight(value: string, from: "lb" | "kg", to: "lb" | "kg"): string {
+    if (from === to) return "";
+    const num = parseFloat(value);
+    if (isNaN(num) || num === 0) return "";
+    const converted = from === "lb" ? num * 0.453592 : num * 2.20462;
+    return String(Math.round(converted * 10) / 10);
+  }
+
+  function switchWeightUnit(newUnit: "lb" | "kg") {
+    const currentUnit = state.preferences.weightUnit;
+    if (newUnit === currentUnit) return;
+    updateTodaySession((session) => {
+      const convertedWeights = Object.fromEntries(
+        Object.entries(session.setWeights).map(([exerciseId, weights]) => [
+          exerciseId,
+          (weights as string[]).map((w) => {
+            const num = parseFloat(w);
+            if (isNaN(num) || w === "") return w;
+            const converted = currentUnit === "lb" ? num * 0.453592 : num * 2.20462;
+            return String(Math.round(converted * 10) / 10);
+          }),
+        ]),
+      );
+      return { ...session, setWeights: convertedWeights };
+    });
+    setState((current) => ({
+      ...current,
+      preferences: { ...current.preferences, weightUnit: newUnit },
+    }));
+  }
+
   function updateUserField<K extends keyof AppState["user"]>(
     field: K,
     value: AppState["user"][K],
@@ -443,12 +474,36 @@ export function MusculitApp() {
                   </div>
                 </div>
 
-                {/* Ejercicios */}
+                {/* Toggle de unidad + ejercicios */}
+                <div className="flex items-center justify-between rounded-2xl border border-[var(--line-soft)] bg-[var(--panel)] px-4 py-3">
+                  <p className="text-xs uppercase tracking-[0.2em] text-[var(--ink-soft)]">
+                    Unidad de peso
+                  </p>
+                  <div className="flex gap-1">
+                    {(["lb", "kg"] as const).map((unit) => (
+                      <button
+                        key={unit}
+                        type="button"
+                        onClick={() => switchWeightUnit(unit)}
+                        className={`rounded-full px-4 py-1.5 text-xs uppercase tracking-[0.16em] transition ${
+                          state.preferences.weightUnit === unit
+                            ? "bg-[var(--ember)] text-white"
+                            : "border border-[var(--line-soft)] text-[var(--ink-soft)]"
+                        }`}
+                      >
+                        {unit}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
                 <div className="grid gap-3">
                   {todayDay.exercises.map((exercise) => {
                     const checked = todaySession.completedExerciseIds.includes(exercise.id);
                     const setCount = inferSetCount(exercise.sets);
                     const setWeights = normalizeSetWeights(todaySession.setWeights[exercise.id]);
+                    const unit = state.preferences.weightUnit;
+                    const otherUnit = unit === "lb" ? "kg" : "lb";
 
                     return (
                       <div
@@ -479,23 +534,41 @@ export function MusculitApp() {
                         </div>
 
                         <div className="mt-3 grid grid-cols-3 gap-2">
-                          {Array.from({ length: setCount }, (_, setIndex) => (
-                            <div key={`${exercise.id}-s${setIndex}`} className="flex flex-col gap-1">
-                              <input
-                                value={setWeights[setIndex] ?? ""}
-                                onChange={(e) => updateSetWeight(exercise.id, setIndex, e.target.value)}
-                                placeholder={`Set ${setIndex + 1}`}
-                                className="rounded-lg border border-[var(--line-soft)] bg-[var(--panel)] px-2 py-2 text-center text-sm text-[var(--ink-strong)] outline-none transition placeholder:text-[var(--ink-soft)] focus:border-[var(--ember)]"
-                              />
-                              <button
-                                type="button"
-                                onClick={() => startRestTimer(`${exercise.name} · S${setIndex + 1}`)}
-                                className="rounded-lg border border-[rgba(255,181,72,0.2)] bg-[rgba(199,100,45,0.08)] py-1 text-[10px] uppercase tracking-[0.14em] text-[#ffd39e]"
-                              >
-                                Timer
-                              </button>
-                            </div>
-                          ))}
+                          {Array.from({ length: setCount }, (_, setIndex) => {
+                            const raw = setWeights[setIndex] ?? "";
+                            const converted = convertWeight(raw, unit, otherUnit);
+                            return (
+                              <div key={`${exercise.id}-s${setIndex}`} className="flex flex-col gap-1">
+                                <p className="text-center text-[10px] uppercase tracking-[0.14em] text-[var(--ink-soft)]">
+                                  Set {setIndex + 1}
+                                </p>
+                                <div className="flex items-center gap-1 rounded-lg border border-[var(--line-soft)] bg-[var(--panel)] px-2 py-2 focus-within:border-[var(--ember)]">
+                                  <input
+                                    value={raw}
+                                    onChange={(e) => updateSetWeight(exercise.id, setIndex, e.target.value)}
+                                    placeholder="0"
+                                    inputMode="decimal"
+                                    className="min-w-0 flex-1 bg-transparent text-center text-sm text-[var(--ink-strong)] outline-none placeholder:text-[var(--ink-soft)]"
+                                  />
+                                  <span className="shrink-0 text-[11px] text-[var(--ink-soft)]">
+                                    {unit}
+                                  </span>
+                                </div>
+                                {converted !== "" && (
+                                  <p className="text-center text-[10px] text-[var(--ink-soft)]">
+                                    ≈ {converted} {otherUnit}
+                                  </p>
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={() => startRestTimer(`${exercise.name} · S${setIndex + 1}`)}
+                                  className="rounded-lg border border-[rgba(255,181,72,0.2)] bg-[rgba(199,100,45,0.08)] py-1 text-[10px] uppercase tracking-[0.14em] text-[#ffd39e]"
+                                >
+                                  Timer
+                                </button>
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
                     );
