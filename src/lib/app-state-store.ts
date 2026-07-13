@@ -7,15 +7,16 @@ import { prisma } from "@/lib/prisma";
 import {
   AppState,
   DayId,
+  DayOverrides,
   SessionRecord,
   createEmptySession,
   fromIsoDate,
   getDayIdFromDate,
+  getTrainingDayFromDate,
   initialState,
   toIsoDate,
 } from "@/lib/musculit-state";
 import { inferSetCount, normalizeSetWeights } from "@/lib/set-utils";
-import { getDayById } from "@/lib/routine-data";
 
 const DEV_STORE_PATH = path.join(process.cwd(), ".musculit-dev-store.json");
 const USER_SLUG = "martin-bundy";
@@ -214,8 +215,8 @@ async function saveToDatabase(state: AppState) {
     const orderedDates = Object.keys(state.sessions).sort();
 
     for (const isoDate of orderedDates) {
-      const session = normalizeSessionRecord(state.sessions[isoDate], isoDate);
-      const day = getDayById(session.dayId);
+      const session = normalizeSessionRecord(state.sessions[isoDate], isoDate, state.dayOverrides);
+      const day = getTrainingDayFromDate(fromIsoDate(isoDate), state.dayOverrides);
       const workout = await tx.workoutSession.create({
         data: {
           userId: user.id,
@@ -261,8 +262,10 @@ async function saveToDatabase(state: AppState) {
 function normalizeAppState(state: AppState): AppState {
   const normalizedSessions: Record<string, SessionRecord> = {};
 
+  const overridesForNormalization = state.dayOverrides ?? {};
+
   for (const [isoDate, rawSession] of Object.entries(state.sessions ?? {})) {
-    normalizedSessions[isoDate] = normalizeSessionRecord(rawSession, isoDate);
+    normalizedSessions[isoDate] = normalizeSessionRecord(rawSession, isoDate, overridesForNormalization);
   }
 
   return {
@@ -280,11 +283,15 @@ function normalizeAppState(state: AppState): AppState {
   };
 }
 
-function normalizeSessionRecord(raw: Partial<SessionRecord>, isoDate: string): SessionRecord {
+function normalizeSessionRecord(
+  raw: Partial<SessionRecord>,
+  isoDate: string,
+  overrides: DayOverrides = {},
+): SessionRecord {
   const date = fromIsoDate(isoDate);
-  const dayId = (raw.dayId as DayId | undefined) ?? getDayIdFromDate(date);
+  const dayId = (raw.dayId as DayId | undefined) ?? getDayIdFromDate(date, overrides);
   const base = createEmptySession(isoDate, dayId);
-  const day = getDayById(dayId);
+  const day = getTrainingDayFromDate(date, overrides);
 
   const setWeights = Object.fromEntries(
     day.exercises.map((exercise) => [

@@ -48,9 +48,15 @@ La misma rutina aplica a ambos dias. El domingo sigue el orden de Cata con los e
 8. `Hip thrust` — `3 x 8-10`
 9. `Abductor machine` — `2 x 8` (inclinarse hacia adelante al sentarse, para mayor activacion de gluteo medio)
 
-## Finisher de core — Miercoles, Sabado y Domingo
+## Finisher de core — dinamico, Lunes a Jueves
 
-Se agrega al final de los dos dias de pierna (Miercoles y Domingo) y del dia de Push (Sabado), a pedido explicito de Tin. Nota: Sabado-Domingo quedan seguidos (un solo dia de por medio no aplica, es literal dia siguiente), lo ideal para recuperacion muscular real es 48-72h entre sesiones de abdomen con carga: con esta frecuencia el par Sabado-Domingo entrena core dos dias seguidos. Se mantiene igual porque Tin prioriza la frecuencia sobre la recuperacion optima en este bloque; si en unas semanas el progreso se estanca, vale la pena revisar bajar a 2x/semana.
+Cambiado 2026-07-13 a pedido de Tin: el finisher de core ya NO esta fijo a dias especificos. La regla ahora es dinamica:
+
+- Se agrega en hasta **2 dias de entreno por semana**, siempre dentro de la ventana **Lunes a Jueves** (nunca en Viernes, Sabado o Domingo, que son los dias con Cata).
+- Los 2 dias se calculan automaticamente: son los primeros 2 dias de entreno reales de esa semana dentro de Lunes-Jueves, en orden cronologico.
+- Bajo el horario default (Lunes y Jueves descanso), esto cae en **Martes (Pull) y Miercoles (Piernas)**.
+- Si la semana es irregular (ver seccion "Semana irregular" en `AGENTS.md`) y los dias de descanso cambian, el finisher se mueve solo junto con el resto de la rutina — sigue cayendo en los dias de entreno dentro de Lunes-Jueves, nunca en Viernes/Sabado/Domingo.
+- Como Tin siempre descansa 2 dias por semana y esos 2 descansos suelen caer dentro de Lunes-Jueves, esto da naturalmente 2 dias de abs por semana con al menos algo de separacion entre ellos (a diferencia de la version anterior, que a veces caia en dias seguidos).
 
 1. `Cable crunch` (o disco con peso acostado en banco declinado si no hay polea) — `3 x 10-15 al fallo`
 2. `Leg raises` controladas, sin balanceo — `3 x 10-15 al fallo`

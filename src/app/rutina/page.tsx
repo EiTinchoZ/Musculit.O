@@ -1,6 +1,10 @@
 "use client";
 
-import { weeklySplit } from "@/lib/routine-data";
+import { getTrainingDayFromDate, getWeekDates } from "@/lib/musculit-state";
+
+// Semana de referencia (sin overrides) solo para derivar el orden Lun-Dom y
+// que el finisher de abs se calcule igual que en la app: 2 dias entre Lun-Jue.
+const referenceWeek = getWeekDates(new Date()).map((date) => getTrainingDayFromDate(date));
 
 const generalRules = [
   { label: "Descanso entre sets", value: "2 minutos" },
@@ -45,7 +49,7 @@ export default function RutinaPage() {
         </div>
 
         <div className="mt-6 grid gap-4 print:mt-4 print:gap-3">
-          {weeklySplit.map((day) => (
+          {referenceWeek.map((day) => (
             <div
               key={day.id}
               className="rounded-2xl border border-[#e3d5c2] bg-white/60 p-5 print:break-inside-avoid print:rounded-none print:border-[#ccc] print:bg-white print:p-3"

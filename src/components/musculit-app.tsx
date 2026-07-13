@@ -1486,7 +1486,7 @@ function normalizeLoadedState(raw: AppState) {
   const normalizedSessions = Object.fromEntries(
     Object.entries(raw.sessions ?? {}).map(([isoDate, session]) => {
       const dayId = ((session?.dayId as DayId | undefined) ?? getDayIdFromDate(fromIsoDate(isoDate), dayOverrides));
-      const day = getDayById(dayId);
+      const day = getTrainingDayFromDate(fromIsoDate(isoDate), dayOverrides);
 
       const setWeights = Object.fromEntries(
         day.exercises.map((exercise) => [
@@ -1581,7 +1581,7 @@ function getExerciseProgressSummaries(state: AppState) {
   for (const [key, exerciseMeta] of uniqueExercises.entries()) {
     const entries = Object.entries(state.sessions)
       .map(([isoDate, session]) => {
-        const day = getDayById(session.dayId);
+        const day = getTrainingDayFromDate(fromIsoDate(isoDate), state.dayOverrides);
         const matchingExercise = day.exercises.find(
           (exercise) =>
             exercise.name === exerciseMeta.name && exercise.group === exerciseMeta.group,

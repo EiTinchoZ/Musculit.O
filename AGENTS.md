@@ -78,7 +78,7 @@ Claude Code y Codex comparten repositorio, pero no comparten rol.
 ## Estado actual
 
 - Rutina semanal reestructurada: Lun/Jue descanso, Mar Pull, Mié Piernas, Vie Cardio con Cata, Sáb Push con Cata, Dom Piernas con Cata.
-- Miercoles y Domingo comparten los mismos 9 ejercicios de piernas; Miercoles ademas cierra con finisher de core (cable crunch + leg raises), igual que Sabado (Push).
+- Miercoles y Domingo comparten los mismos 9 ejercicios de piernas. El finisher de core (cable crunch + leg raises) ya NO esta fijo a dias especificos: se calcula dinamicamente en `getTrainingDayFromDate` (`musculit-state.ts`), hasta 2 dias de entreno por semana entre Lunes y Jueves. Ver "Finisher de core dinamico" mas abajo para el detalle completo.
 - Interfaz simplificada: 3 tabs (Hoy / Historial / Perfil) en lugar de 5.
 - Tab Hoy = tracker del día actual integrado. Sin home separado.
 - Timer de descanso, pesos por set y journal intactos.
@@ -95,7 +95,7 @@ Rol: **Solo Claude Code** (confirmado por Tín). Pendiente de aprobación explí
 
 | Decisión | Elegido | Por qué |
 |---|---|---|
-| Frecuencia de abs | 3x/semana — Miércoles, Sábado y Domingo (los 2 días de pierna + Push) | Cambiado 2026-07-13 a pedido explícito de Tín, prioriza frecuencia sobre recuperación óptima. Sábado-Domingo quedan seguidos (recuperación de abs sub-óptima ese par); revisar si el progreso se estanca |
+| Frecuencia de abs | Dinámica: hasta 2 días de entreno por semana, siempre entre Lunes y Jueves, nunca en días con Cata (Vie/Sáb/Dom) | Cambiado 2026-07-13 (segunda vez) a pedido de Tín. Default cae en Martes+Miércoles. Se recalcula solo cuando la semana es irregular — ver "Finisher de core dinámico" abajo |
 | Paleta UI | Se mantiene ember/brass | Ya es la identidad visual del producto, el overhaul es de layout/interacción, no de dirección de color |
 | Tab IA | 4to tab "Coach" en la barra principal | Confirmado por Tín, revierte la simplificación a 3 tabs documentada arriba — queda registrado aquí como cambio consciente |
 | IndexedDB | No se agrega | El JSON de estado es chico (sesiones de un solo usuario), localStorage ya alcanza. Se documenta para no repetir la pregunta |
@@ -113,6 +113,18 @@ Bloque de core (TikTok), como finisher:
 - Leg raises controladas, sin balanceo — `3 x 10-15 al fallo`
 - Va al final de Miércoles (Piernas) y Sábado (Push)
 - `ROUTINE.md` se actualiza primero (fuente de verdad), luego `routine-data.ts`
+
+### Finisher de core — de estático a dinámico (2026-07-13, revisión 3)
+
+El finisher de core pasó por 3 iteraciones en esta sesión: primero Miércoles+Sábado (2x/semana), después se agregó Domingo (3x/semana, a pedido de Tín), y finalmente Tín pidió que sea dinámico: **hasta 2 días de entreno por semana, siempre entre Lunes y Jueves, nunca en días con Cata (Vie/Sáb/Dom)** — y que se recalcule solo cuando la semana es irregular.
+
+Esto ya no se puede resolver baqueando los ejercicios en días fijos de `weeklySplit` — depende de qué días son de descanso *esa semana*, que puede cambiar vía `dayOverrides` (Bloque 7). Se movió la lógica al resolver del día:
+
+- `coreFinisherExercises` en `routine-data.ts` ahora se exporta (antes era interno) y ya no está pegado a Miércoles/Sábado/Domingo en `weeklySplit` — esos días volvieron a su lista de ejercicios original.
+- `getTrainingDayFromDate(date, overrides)` en `musculit-state.ts` es ahora la única fuente de verdad de "qué ejercicios tiene este día". Internamente resuelve el día base (`getBaseTrainingDay`) y decide si ese día especifico es uno de los (hasta) 2 días de core de la semana (`isAbsFinisherDay`): mira los 4 días Lunes-Jueves de esa semana, filtra los que son de entreno real (respetando overrides), toma los primeros 2 en orden cronológico, y si la fecha consultada está en esa lista, le agrega el finisher.
+- **Importante:** esto significa que `getDayById(dayId)` solo, sin pasar por `getTrainingDayFromDate`, ya NO alcanza para saber los ejercicios reales de un día — hay que usar siempre `getTrainingDayFromDate(date, overrides)` cuando se necesite la lista de ejercicios de una fecha concreta. Se corrigieron todos los call sites que hacían esto mal: `app-state-store.ts` (`saveToDatabase`, `normalizeSessionRecord` — ahora recibe `overrides` como parámetro), y en el cliente `normalizeLoadedState` y `getExerciseProgressSummaries`. La página `/rutina` (PDF) también se actualizó para generar la semana de referencia con `getTrainingDayFromDate` en vez de leer `weeklySplit` crudo.
+- Bajo el horario default (Lunes/Jueves descanso), esto da Martes (Pull) + Miércoles (Piernas) — ya no Sábado/Domingo.
+- Verificado en navegador con Playwright: horario default (Martes y Miércoles con abs, Sábado y Domingo sin abs), y el caso real de semana irregular de Tín (descansar Martes y Jueves) — el finisher se movió solo a Lunes (que pasa a ser Pull) y Miércoles, sin tocar código de nuevo. También se verificó que `/rutina` refleja la misma regla.
 
 ### Bloque 2 — Fix persistencia / Safari (crítico)
 

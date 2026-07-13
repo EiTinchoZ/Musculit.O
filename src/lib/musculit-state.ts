@@ -1,4 +1,12 @@
-import { DayId, TrainingDay, dayOrder, getDayById, weekdayToDayId, weeklySplit } from "@/lib/routine-data";
+import {
+  DayId,
+  TrainingDay,
+  coreFinisherExercises,
+  dayOrder,
+  getDayById,
+  weekdayToDayId,
+  weeklySplit,
+} from "@/lib/routine-data";
 import { Habit, HabitCadence, habits } from "@/lib/habits-data";
 
 export type UserProfile = {
@@ -118,8 +126,39 @@ export function getDayIdFromDate(date: Date, overrides: DayOverrides = {}): DayI
   return overrides[toIsoDate(date)] ?? weekdayToDayId(date.getDay());
 }
 
-export function getTrainingDayFromDate(date: Date, overrides: DayOverrides = {}): TrainingDay {
+function getBaseTrainingDay(date: Date, overrides: DayOverrides): TrainingDay {
   return getDayById(getDayIdFromDate(date, overrides));
+}
+
+/**
+ * El finisher de core va en hasta 2 dias de entreno por semana, siempre entre
+ * Lunes y Jueves (nunca en Viernes/Sabado/Domingo, que son los dias con Cata).
+ * Los 2 dias se eligen de forma dinamica: los primeros 2 dias de entreno reales
+ * de esa semana dentro de la ventana Lunes-Jueves, en orden cronologico. Esto
+ * hace que el finisher se mueva solo cuando la semana es irregular (dayOverrides).
+ */
+function isAbsFinisherDay(date: Date, overrides: DayOverrides): boolean {
+  const isoWeekday = (date.getDay() + 6) % 7; // 0=Lunes ... 6=Domingo
+  if (isoWeekday > 3) return false; // excluye Vie/Sab/Dom (dias con Cata)
+
+  const monThu = getWeekDates(date).slice(0, 4); // Lun, Mar, Mie, Jue
+  const trainingIsoDates = monThu
+    .filter((day) => getBaseTrainingDay(day, overrides).type === "training")
+    .map((day) => toIsoDate(day))
+    .slice(0, 2);
+
+  return trainingIsoDates.includes(toIsoDate(date));
+}
+
+export function getTrainingDayFromDate(date: Date, overrides: DayOverrides = {}): TrainingDay {
+  const base = getBaseTrainingDay(date, overrides);
+  if (base.type !== "training" || !isAbsFinisherDay(date, overrides)) {
+    return base;
+  }
+  return {
+    ...base,
+    exercises: [...base.exercises, ...coreFinisherExercises("finisher")],
+  };
 }
 
 export function getSessionForDate(state: AppState, isoDate: string) {

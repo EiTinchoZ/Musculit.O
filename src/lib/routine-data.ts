@@ -165,7 +165,7 @@ const legsExercises = (suffix: string): Exercise[] => [
   },
 ];
 
-const coreFinisherExercises = (suffix: string): Exercise[] => [
+export const coreFinisherExercises = (suffix: string): Exercise[] => [
   {
     id: `cable-crunch-${suffix}`,
     name: "Cable crunch",
@@ -320,7 +320,7 @@ export const weeklySplit: TrainingDay[] = [
     duration: "60-75 min + cardio",
     notes: "Misma rutina de piernas que el domingo. Dia solo, tu ritmo.",
     warmup: legsWarmup,
-    exercises: [...legsExercises("wednesday"), ...coreFinisherExercises("wednesday")],
+    exercises: legsExercises("wednesday"),
   },
   {
     id: "thursday",
@@ -443,7 +443,6 @@ export const weeklySplit: TrainingDay[] = [
         feel: "Triceps en extension larga.",
         alternative: "Kickback con mancuerna.",
       },
-      ...coreFinisherExercises("saturday"),
     ],
   },
   {
@@ -458,7 +457,7 @@ export const weeklySplit: TrainingDay[] = [
     duration: "60-75 min + cardio",
     notes: "Piernas con Cata. Sigues su orden con tus ejercicios integrados. Mismos ejercicios, tus pesos.",
     warmup: cataLegsWarmup,
-    exercises: [...legsExercises("sunday"), ...coreFinisherExercises("sunday")],
+    exercises: legsExercises("sunday"),
   },
 ];
 
