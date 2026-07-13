@@ -97,6 +97,10 @@ label {
   user-select: none;
 }
 
+.progress-ring-arc {
+  transition: stroke-dashoffset 620ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
 .fire-chip {
   display: inline-flex;
   align-items: center;

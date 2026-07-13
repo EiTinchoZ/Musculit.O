@@ -44,9 +44,18 @@ La misma rutina aplica a ambos dias. El domingo sigue el orden de Cata con los e
 4. `Smith machine squats` — `3 x 8`
 5. `Bulgarian split squat` — `2 x 8 por pierna`
 6. `Peso muerto discos en talones` — `3 x 10`
-7. `Leg extension` — `2 x 8-10`
+7. `Leg extension` — `3 x 8-10`
 8. `Hip thrust` — `3 x 8-10`
-9. `Abductor machine` — `1 set al fallo`
+9. `Abductor machine` — `2 x 8` (inclinarse hacia adelante al sentarse, para mayor activacion de gluteo medio)
+
+## Finisher de core — Miercoles, Sabado y Domingo
+
+Se agrega al final de los dos dias de pierna (Miercoles y Domingo) y del dia de Push (Sabado), a pedido explicito de Tin. Nota: Sabado-Domingo quedan seguidos (un solo dia de por medio no aplica, es literal dia siguiente), lo ideal para recuperacion muscular real es 48-72h entre sesiones de abdomen con carga: con esta frecuencia el par Sabado-Domingo entrena core dos dias seguidos. Se mantiene igual porque Tin prioriza la frecuencia sobre la recuperacion optima en este bloque; si en unas semanas el progreso se estanca, vale la pena revisar bajar a 2x/semana.
+
+1. `Cable crunch` (o disco con peso acostado en banco declinado si no hay polea) — `3 x 10-15 al fallo`
+2. `Leg raises` controladas, sin balanceo — `3 x 10-15 al fallo`
+
+Regla de sobrecarga progresiva: si se completan las 15 reps limpias en ambas series, subir peso o reps la siguiente sesion.
 
 ## Viernes - Cardio con Cata
 
@@ -62,7 +71,7 @@ Warm up: 5 min cardio + 10 jumping jacks
 4. `Dumbbell shoulder press` — `3 x 8`
 5. `Cable lateral raises` — `3 x 10 por brazo`
 6. `Elevaciones frontales` — `3 x 10` *(ejercicio de Cata)*
-7. `Cable overhead tricep extension` — `2 x 8`
+7. `Cable overhead tricep extension` — `3 x 8`
 8. `Katana tricep extension` — `2 x 8`
 
 ## Notas operativas

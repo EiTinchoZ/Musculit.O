@@ -65,6 +65,8 @@ async function loadFromFile() {
         ...(parsed.preferences ?? {}),
       },
       sessions: parsed.sessions ?? {},
+      dayOverrides: parsed.dayOverrides ?? {},
+      habitCompletions: parsed.habitCompletions ?? {},
     });
   } catch {
     return initialState;
@@ -91,6 +93,9 @@ async function loadFromDatabase() {
       showDetails: initialState.preferences.showDetails,
       soundEnabled: initialState.preferences.soundEnabled,
       calendarView: initialState.preferences.calendarView,
+      weightUnit: initialState.preferences.weightUnit,
+      dayOverrides: JSON.stringify(initialState.dayOverrides),
+      habitCompletions: JSON.stringify(initialState.habitCompletions),
     },
     include: {
       sessions: {
@@ -145,9 +150,11 @@ async function loadFromDatabase() {
       showDetails: user.showDetails,
       soundEnabled: user.soundEnabled,
       calendarView: normalizeCalendarView(user.calendarView),
-      weightUnit: normalizeWeightUnit((user as Record<string, unknown>).weightUnit),
+      weightUnit: normalizeWeightUnit(user.weightUnit),
     },
     sessions,
+    dayOverrides: normalizeDayOverrides(user.dayOverrides),
+    habitCompletions: normalizeHabitCompletions(user.habitCompletions),
   });
 }
 
@@ -165,6 +172,9 @@ async function saveToDatabase(state: AppState) {
       showDetails: state.preferences.showDetails,
       soundEnabled: state.preferences.soundEnabled,
       calendarView: state.preferences.calendarView,
+      weightUnit: state.preferences.weightUnit,
+      dayOverrides: JSON.stringify(state.dayOverrides),
+      habitCompletions: JSON.stringify(state.habitCompletions),
     },
     create: {
       slug: USER_SLUG,
@@ -178,6 +188,9 @@ async function saveToDatabase(state: AppState) {
       showDetails: state.preferences.showDetails,
       soundEnabled: state.preferences.soundEnabled,
       calendarView: state.preferences.calendarView,
+      weightUnit: state.preferences.weightUnit,
+      dayOverrides: JSON.stringify(state.dayOverrides),
+      habitCompletions: JSON.stringify(state.habitCompletions),
     },
   });
 
@@ -262,6 +275,8 @@ function normalizeAppState(state: AppState): AppState {
       ...state.preferences,
     },
     sessions: normalizedSessions,
+    dayOverrides: { ...initialState.dayOverrides, ...(state.dayOverrides ?? {}) },
+    habitCompletions: { ...initialState.habitCompletions, ...(state.habitCompletions ?? {}) },
   };
 }
 
@@ -311,4 +326,36 @@ function normalizeCalendarView(value: string) {
 function normalizeWeightUnit(value: unknown): "lb" | "kg" {
   if (value === "lb" || value === "kg") return value;
   return initialState.preferences.weightUnit;
+}
+
+function normalizeDayOverrides(value: unknown): AppState["dayOverrides"] {
+  if (typeof value !== "string") return {};
+  try {
+    const parsed = JSON.parse(value) as Record<string, unknown>;
+    const result: AppState["dayOverrides"] = {};
+    for (const [isoDate, dayId] of Object.entries(parsed)) {
+      if (typeof dayId === "string") {
+        result[isoDate] = dayId as DayId;
+      }
+    }
+    return result;
+  } catch {
+    return {};
+  }
+}
+
+function normalizeHabitCompletions(value: unknown): AppState["habitCompletions"] {
+  if (typeof value !== "string") return {};
+  try {
+    const parsed = JSON.parse(value) as Record<string, unknown>;
+    const result: AppState["habitCompletions"] = {};
+    for (const [periodKey, ids] of Object.entries(parsed)) {
+      if (Array.isArray(ids)) {
+        result[periodKey] = ids.filter((id): id is string => typeof id === "string");
+      }
+    }
+    return result;
+  } catch {
+    return {};
+  }
 }

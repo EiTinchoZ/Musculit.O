@@ -136,7 +136,7 @@ const legsExercises = (suffix: string): Exercise[] => [
   {
     id: `leg-extension-${suffix}`,
     name: "Leg extension",
-    sets: "2 x 8-10",
+    sets: "3 x 8-10",
     group: "Cuadriceps",
     cue: "Aprieta arriba un instante y no rebotes en la bajada.",
     setup: "Respaldo y rodillo ajustados, rodilla alineada al eje.",
@@ -155,13 +155,36 @@ const legsExercises = (suffix: string): Exercise[] => [
   },
   {
     id: `abductor-${suffix}`,
-    name: "Abductor machine finisher",
-    sets: "1 x fallo",
+    name: "Abductor machine",
+    sets: "2 x 8",
     group: "Abductores / Gluteo medio",
-    cue: "Abre con control, sostén un instante y lleva ese ultimo set hasta el fallo tecnico.",
-    setup: "Asiento ajustado, espalda pegada y rodillas empujando los pads.",
+    cue: "Inclinate hacia adelante al sentarte para aislar mas el gluteo medio. Abre con control y sostén un instante arriba.",
+    setup: "Asiento ajustado, torso inclinado hacia adelante y rodillas empujando los pads.",
     feel: "Quema en la parte lateral del gluteo y cadera externa.",
-    alternative: "Abducciones con banda como finisher.",
+    alternative: "Abducciones con banda, inclinado hacia adelante.",
+  },
+];
+
+const coreFinisherExercises = (suffix: string): Exercise[] => [
+  {
+    id: `cable-crunch-${suffix}`,
+    name: "Cable crunch",
+    sets: "3 x 10-15 al fallo",
+    group: "Abdomen",
+    cue: "Flexiona la columna de forma controlada y aprieta el abdomen en el momento del movimiento, sin tirar con los brazos.",
+    setup: "Arrodillado frente a la polea alta con cuerda, cadera fija. Sin polea: acostado en banco declinado con la cabeza hacia abajo y un disco sobre el pecho.",
+    feel: "Contraccion abdominal completa, no en la espalda baja ni en los brazos.",
+    alternative: "Crunch con disco en banco declinado, cabeza hacia abajo.",
+  },
+  {
+    id: `leg-raises-${suffix}`,
+    name: "Leg raises",
+    sets: "3 x 10-15 al fallo",
+    group: "Abdomen inferior",
+    cue: "Sube y baja con control total, sin balancear el cuerpo para tomar impulso.",
+    setup: "Colgado de la barra o acostado en banco, piernas extendidas o semi flexionadas.",
+    feel: "Abdomen inferior trabajando toda la bajada, no solo la subida.",
+    alternative: "Rodillas al pecho colgado si el rango extendido es muy dificil todavia.",
   },
 ];
 
@@ -297,7 +320,7 @@ export const weeklySplit: TrainingDay[] = [
     duration: "60-75 min + cardio",
     notes: "Misma rutina de piernas que el domingo. Dia solo, tu ritmo.",
     warmup: legsWarmup,
-    exercises: legsExercises("wednesday"),
+    exercises: [...legsExercises("wednesday"), ...coreFinisherExercises("wednesday")],
   },
   {
     id: "thursday",
@@ -403,7 +426,7 @@ export const weeklySplit: TrainingDay[] = [
       {
         id: "cable-overhead-tricep-extension",
         name: "Cable overhead tricep extension",
-        sets: "2 x 8",
+        sets: "3 x 8",
         group: "Triceps",
         cue: "Codos quietos y extension completa.",
         setup: "Cuerda en polea alta, espaldas a la maquina, codos fijos arriba.",
@@ -420,6 +443,7 @@ export const weeklySplit: TrainingDay[] = [
         feel: "Triceps en extension larga.",
         alternative: "Kickback con mancuerna.",
       },
+      ...coreFinisherExercises("saturday"),
     ],
   },
   {
@@ -434,7 +458,7 @@ export const weeklySplit: TrainingDay[] = [
     duration: "60-75 min + cardio",
     notes: "Piernas con Cata. Sigues su orden con tus ejercicios integrados. Mismos ejercicios, tus pesos.",
     warmup: cataLegsWarmup,
-    exercises: legsExercises("sunday"),
+    exercises: [...legsExercises("sunday"), ...coreFinisherExercises("sunday")],
   },
 ];
 

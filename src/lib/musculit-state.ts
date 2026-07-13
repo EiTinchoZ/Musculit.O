@@ -1,4 +1,5 @@
 import { DayId, TrainingDay, dayOrder, getDayById, weekdayToDayId, weeklySplit } from "@/lib/routine-data";
+import { Habit, HabitCadence, habits } from "@/lib/habits-data";
 
 export type UserProfile = {
   name: string;
@@ -27,10 +28,18 @@ export type SessionRecord = {
   closedAt: string | null;
 };
 
+export type DayOverrides = Record<string, DayId>;
+
+// clave de periodo (fecha ISO para diario, lunes ISO de la semana para semanal,
+// "YYYY-MM" para mensual) -> ids de habitos completados en ese periodo
+export type HabitCompletions = Record<string, string[]>;
+
 export type AppState = {
   user: UserProfile;
   preferences: Preferences;
   sessions: Record<string, SessionRecord>;
+  dayOverrides: DayOverrides;
+  habitCompletions: HabitCompletions;
 };
 
 export type DerivedStats = {
@@ -49,6 +58,7 @@ export type DerivedStats = {
 };
 
 export const STORAGE_KEY = "musculit.v1";
+export const SYNC_META_KEY = "musculit.v1.sync";
 
 export const initialState: AppState = {
   user: {
@@ -67,7 +77,13 @@ export const initialState: AppState = {
     weightUnit: "lb",
   },
   sessions: {},
+  dayOverrides: {},
+  habitCompletions: {},
 };
+
+// dayId "canonico" usado cuando un dia se marca como descanso por un override semanal,
+// sin importar de que dia de la semana vino originalmente.
+const OVERRIDE_REST_DAY_ID: DayId = "monday";
 
 export function createEmptySession(date: string, dayId: DayId): SessionRecord {
   return {
@@ -98,17 +114,17 @@ export function fromIsoDate(iso: string) {
   return new Date(year, month - 1, day);
 }
 
-export function getDayIdFromDate(date: Date): DayId {
-  return weekdayToDayId(date.getDay());
+export function getDayIdFromDate(date: Date, overrides: DayOverrides = {}): DayId {
+  return overrides[toIsoDate(date)] ?? weekdayToDayId(date.getDay());
 }
 
-export function getTrainingDayFromDate(date: Date): TrainingDay {
-  return getDayById(getDayIdFromDate(date));
+export function getTrainingDayFromDate(date: Date, overrides: DayOverrides = {}): TrainingDay {
+  return getDayById(getDayIdFromDate(date, overrides));
 }
 
 export function getSessionForDate(state: AppState, isoDate: string) {
   const date = fromIsoDate(isoDate);
-  const dayId = getDayIdFromDate(date);
+  const dayId = getDayIdFromDate(date, state.dayOverrides);
   return state.sessions[isoDate] ?? createEmptySession(isoDate, dayId);
 }
 
@@ -197,7 +213,7 @@ export function getDerivedStats(state: AppState, todayIso: string): DerivedStats
   let scheduledDaysSeen = 0;
 
   for (const iso of sortedDates) {
-    const day = getTrainingDayFromDate(fromIsoDate(iso));
+    const day = getTrainingDayFromDate(fromIsoDate(iso), state.dayOverrides);
     const session = state.sessions[iso];
     totalXp += getXpForSession(day, session);
     if (day.type === "training") {
@@ -207,6 +223,8 @@ export function getDerivedStats(state: AppState, todayIso: string): DerivedStats
       }
     }
   }
+
+  totalXp += getHabitXp(state);
 
   const { level, currentLevelXp, nextLevelXp } = getLevelFromXp(totalXp);
   const streak = getCurrentStreak(state, todayIso);
@@ -218,7 +236,7 @@ export function getDerivedStats(state: AppState, todayIso: string): DerivedStats
   let thisWeekCompleted = 0;
 
   for (const date of weekDates) {
-    const day = getTrainingDayFromDate(date);
+    const day = getTrainingDayFromDate(date, state.dayOverrides);
     if (day.type === "training") {
       thisWeekScheduled += 1;
       const iso = toIsoDate(date);
@@ -250,7 +268,7 @@ export function getCurrentStreak(state: AppState, todayIso: string) {
   let streak = 0;
 
   for (let guard = 0; guard < 366; guard += 1) {
-    const day = getTrainingDayFromDate(cursor);
+    const day = getTrainingDayFromDate(cursor, state.dayOverrides);
     if (day.type === "rest") {
       cursor = shiftDate(cursor, -1);
       continue;
@@ -276,7 +294,7 @@ export function getCurrentFullCompletionStreak(state: AppState, todayIso: string
   let streak = 0;
 
   for (let guard = 0; guard < 366; guard += 1) {
-    const day = getTrainingDayFromDate(cursor);
+    const day = getTrainingDayFromDate(cursor, state.dayOverrides);
     if (day.type === "rest") {
       cursor = shiftDate(cursor, -1);
       continue;
@@ -358,12 +376,12 @@ export function formatShortLabel(date: Date) {
   }).format(date);
 }
 
-export function getNextTrainingDays(fromDate: Date, count = 3) {
+export function getNextTrainingDays(fromDate: Date, count = 3, overrides: DayOverrides = {}) {
   const result: TrainingDay[] = [];
   let cursor = shiftDate(fromDate, 1);
 
   while (result.length < count) {
-    const day = getTrainingDayFromDate(cursor);
+    const day = getTrainingDayFromDate(cursor, overrides);
     if (day.type === "training") {
       result.push(day);
     }
@@ -371,6 +389,72 @@ export function getNextTrainingDays(fromDate: Date, count = 3) {
   }
 
   return result;
+}
+
+/**
+ * Calcula el reacomodo de una semana irregular: dado un set de fechas ISO marcadas
+ * como descanso dentro de la semana de `weekStart`, redistribuye la secuencia normal
+ * de tipos de entreno (el orden Pull -> Piernas -> Cardio -> Push -> Piernas que ya
+ * define weeklySplit) sobre los dias que si quedan disponibles, en orden cronologico.
+ * Si sobran dias disponibles, la secuencia se repite (cicla) para llenarlos.
+ * Si faltan, se recorta desde el final.
+ *
+ * skipDayTypes permite excluir del ciclo un tipo de entreno puntual (ej. el usuario
+ * decide saltar el Push de esta semana en vez de reacomodarlo a otro dia).
+ */
+export function computeWeekReflow(
+  weekStart: Date,
+  restIsoDates: Set<string>,
+  skipDayTypes: Set<DayId> = new Set(),
+): DayOverrides {
+  const weekDates = getWeekDates(weekStart);
+  const availableDates = weekDates.filter((date) => !restIsoDates.has(toIsoDate(date)));
+  const sequence = weeklySplit
+    .filter((day) => day.type === "training" && !skipDayTypes.has(day.id))
+    .map((day) => day.id);
+
+  const overrides: DayOverrides = {};
+
+  for (const date of weekDates) {
+    const iso = toIsoDate(date);
+    if (restIsoDates.has(iso)) {
+      overrides[iso] = OVERRIDE_REST_DAY_ID;
+    }
+  }
+
+  if (sequence.length > 0) {
+    availableDates.forEach((date, index) => {
+      overrides[toIsoDate(date)] = sequence[index % sequence.length];
+    });
+  }
+
+  return overrides;
+}
+
+export function getHabitPeriodKey(date: Date, cadence: HabitCadence): string {
+  if (cadence === "daily") {
+    return toIsoDate(date);
+  }
+  if (cadence === "weekly") {
+    return toIsoDate(getWeekDates(date)[0]);
+  }
+  const { year, month } = getLocalDateParts(date);
+  return `${year}-${month}`;
+}
+
+export function getHabitsByCadence(cadence: HabitCadence): Habit[] {
+  return habits.filter((habit) => habit.cadence === cadence);
+}
+
+export function getHabitXp(state: AppState): number {
+  let total = 0;
+  for (const ids of Object.values(state.habitCompletions)) {
+    for (const id of ids) {
+      const habit = habits.find((item) => item.id === id);
+      if (habit) total += habit.xp;
+    }
+  }
+  return total;
 }
 
 export function getStatusTone(status: string) {
