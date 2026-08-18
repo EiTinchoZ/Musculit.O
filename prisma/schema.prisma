@@ -35,6 +35,8 @@ model WorkoutSession {
   dayId             String
   completedCardio   Boolean           @default(false)
   journal           String            @default("")
+  weightUnit        String            @default("lb")
+  contentHash       String            @default("")
   closedAt          DateTime?
   createdAt         DateTime          @default(now())
   updatedAt         DateTime          @updatedAt

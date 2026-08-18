@@ -1,5 +1,6 @@
 import "server-only";
 
+import { createHash } from "node:crypto";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { hasDatabaseConnection } from "@/lib/database-env";
@@ -133,6 +134,7 @@ async function loadFromDatabase() {
           exercise.sets.map((entry) => entry.weightUsed),
         ]),
       ),
+      weightUnit: normalizeWeightUnit(session.weightUnit),
       closedAt: session.closedAt ? session.closedAt.toISOString() : null,
     };
   }
@@ -196,37 +198,67 @@ async function saveToDatabase(state: AppState) {
   });
 
   await prisma.$transaction(async (tx) => {
-    await tx.sessionExerciseSet.deleteMany({
-      where: {
-        sessionExercise: {
-          workout: { userId: user.id },
-        },
-      },
-    });
-    await tx.sessionExercise.deleteMany({
-      where: {
-        workout: { userId: user.id },
-      },
-    });
-    await tx.workoutSession.deleteMany({
+    // Solo se reescriben las sesiones cuyo contenido cambio de verdad (comparando
+    // contra `contentHash`), en vez de borrar y recrear todo el historial en cada
+    // autosave. Con meses de sesiones esto evita miles de escrituras redundantes.
+    const existingSessions = await tx.workoutSession.findMany({
       where: { userId: user.id },
+      select: { id: true, sessionDate: true, contentHash: true },
     });
+    const existingByIso = new Map(
+      existingSessions.map((row) => [toIsoDate(row.sessionDate), row]),
+    );
+
+    const incomingIsoDates = new Set(Object.keys(state.sessions));
+    const staleIds = existingSessions
+      .filter((row) => !incomingIsoDates.has(toIsoDate(row.sessionDate)))
+      .map((row) => row.id);
+    if (staleIds.length) {
+      await tx.workoutSession.deleteMany({ where: { id: { in: staleIds } } });
+    }
 
     const orderedDates = Object.keys(state.sessions).sort();
 
     for (const isoDate of orderedDates) {
-      const session = normalizeSessionRecord(state.sessions[isoDate], isoDate, state.dayOverrides);
+      const session = normalizeSessionRecord(
+        state.sessions[isoDate],
+        isoDate,
+        state.dayOverrides,
+        state.preferences.weightUnit,
+      );
+      const contentHash = computeSessionContentHash(session);
+      const existingRow = existingByIso.get(isoDate);
+
+      if (existingRow && existingRow.contentHash === contentHash) {
+        continue;
+      }
+
       const day = getTrainingDayFromDate(fromIsoDate(isoDate), state.dayOverrides);
-      const workout = await tx.workoutSession.create({
-        data: {
+      const workout = await tx.workoutSession.upsert({
+        where: { userId_sessionDate: { userId: user.id, sessionDate: fromIsoDate(isoDate) } },
+        update: {
+          dayId: session.dayId,
+          completedCardio: session.completedCardio,
+          journal: session.journal,
+          weightUnit: session.weightUnit,
+          closedAt: session.closedAt ? new Date(session.closedAt) : null,
+          contentHash,
+        },
+        create: {
           userId: user.id,
           sessionDate: fromIsoDate(isoDate),
           dayId: session.dayId,
           completedCardio: session.completedCardio,
           journal: session.journal,
+          weightUnit: session.weightUnit,
           closedAt: session.closedAt ? new Date(session.closedAt) : null,
+          contentHash,
         },
       });
+
+      // Esta sesion si cambio: se reescriben solo sus propios ejercicios/sets
+      // (barato, es una sola sesion), no los del resto del historial.
+      await tx.sessionExercise.deleteMany({ where: { workoutId: workout.id } });
 
       for (const [index, exercise] of day.exercises.entries()) {
         const setWeights = normalizeWeightArray(
@@ -259,13 +291,34 @@ async function saveToDatabase(state: AppState) {
   });
 }
 
+function computeSessionContentHash(session: SessionRecord): string {
+  const canonical = {
+    dayId: session.dayId,
+    completedCardio: session.completedCardio,
+    journal: session.journal,
+    weightUnit: session.weightUnit,
+    closedAt: session.closedAt,
+    completedExerciseIds: [...session.completedExerciseIds].sort(),
+    setWeights: Object.fromEntries(
+      Object.entries(session.setWeights).sort(([a], [b]) => a.localeCompare(b)),
+    ),
+  };
+  return createHash("sha1").update(JSON.stringify(canonical)).digest("hex");
+}
+
 function normalizeAppState(state: AppState): AppState {
+  const preferences = { ...initialState.preferences, ...state.preferences };
   const normalizedSessions: Record<string, SessionRecord> = {};
 
   const overridesForNormalization = state.dayOverrides ?? {};
 
   for (const [isoDate, rawSession] of Object.entries(state.sessions ?? {})) {
-    normalizedSessions[isoDate] = normalizeSessionRecord(rawSession, isoDate, overridesForNormalization);
+    normalizedSessions[isoDate] = normalizeSessionRecord(
+      rawSession,
+      isoDate,
+      overridesForNormalization,
+      preferences.weightUnit,
+    );
   }
 
   return {
@@ -273,10 +326,7 @@ function normalizeAppState(state: AppState): AppState {
       ...initialState.user,
       ...state.user,
     },
-    preferences: {
-      ...initialState.preferences,
-      ...state.preferences,
-    },
+    preferences,
     sessions: normalizedSessions,
     dayOverrides: { ...initialState.dayOverrides, ...(state.dayOverrides ?? {}) },
     habitCompletions: { ...initialState.habitCompletions, ...(state.habitCompletions ?? {}) },
@@ -287,10 +337,11 @@ function normalizeSessionRecord(
   raw: Partial<SessionRecord>,
   isoDate: string,
   overrides: DayOverrides = {},
+  fallbackWeightUnit: "lb" | "kg" = "lb",
 ): SessionRecord {
   const date = fromIsoDate(isoDate);
   const dayId = (raw.dayId as DayId | undefined) ?? getDayIdFromDate(date, overrides);
-  const base = createEmptySession(isoDate, dayId);
+  const base = createEmptySession(isoDate, dayId, fallbackWeightUnit);
   const day = getTrainingDayFromDate(date, overrides);
 
   const setWeights = Object.fromEntries(
@@ -314,6 +365,7 @@ function normalizeSessionRecord(
     completedCardio: Boolean(raw.completedCardio),
     journal: typeof raw.journal === "string" ? raw.journal : "",
     setWeights,
+    weightUnit: normalizeWeightUnit(raw.weightUnit ?? fallbackWeightUnit),
     closedAt: typeof raw.closedAt === "string" ? raw.closedAt : null,
   };
 }

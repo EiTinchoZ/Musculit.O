@@ -26,3 +26,11 @@ export function normalizeSetWeights(value: unknown): string[] {
 
   return [];
 }
+
+export function convertWeight(value: string, from: "lb" | "kg", to: "lb" | "kg"): string {
+  if (from === to) return "";
+  const num = parseFloat(value);
+  if (isNaN(num) || num === 0) return "";
+  const converted = from === "lb" ? num * 0.453592 : num * 2.20462;
+  return String(Math.round(converted * 10) / 10);
+}

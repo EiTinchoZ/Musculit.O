@@ -33,6 +33,7 @@ export type SessionRecord = {
   completedCardio: boolean;
   journal: string;
   setWeights: Record<string, string[]>;
+  weightUnit: "lb" | "kg";
   closedAt: string | null;
 };
 
@@ -93,7 +94,11 @@ export const initialState: AppState = {
 // sin importar de que dia de la semana vino originalmente.
 const OVERRIDE_REST_DAY_ID: DayId = "monday";
 
-export function createEmptySession(date: string, dayId: DayId): SessionRecord {
+export function createEmptySession(
+  date: string,
+  dayId: DayId,
+  weightUnit: "lb" | "kg" = "lb",
+): SessionRecord {
   return {
     date,
     dayId,
@@ -101,6 +106,7 @@ export function createEmptySession(date: string, dayId: DayId): SessionRecord {
     completedCardio: false,
     journal: "",
     setWeights: {},
+    weightUnit,
     closedAt: null,
   };
 }
@@ -164,7 +170,9 @@ export function getTrainingDayFromDate(date: Date, overrides: DayOverrides = {})
 export function getSessionForDate(state: AppState, isoDate: string) {
   const date = fromIsoDate(isoDate);
   const dayId = getDayIdFromDate(date, state.dayOverrides);
-  return state.sessions[isoDate] ?? createEmptySession(isoDate, dayId);
+  return (
+    state.sessions[isoDate] ?? createEmptySession(isoDate, dayId, state.preferences.weightUnit)
+  );
 }
 
 export function getTrackableItemCount(day: TrainingDay) {
@@ -221,9 +229,7 @@ export function getXpForSession(day: TrainingDay, session: SessionRecord) {
   if (ratio >= 0.25) {
     return 60;
   }
-  if (ratio > 0) {
-    return -75;
-  }
+  // Sin penalizacion bajo 25%: registrar poco es mejor que no registrar nada.
   return 0;
 }
 
