@@ -441,3 +441,20 @@ Implementado y verificado:
 - `tsc`, `eslint`, `vitest` (21 tests) y `npm run build` limpios.
 
 **No implementado a propósito (fuera de alcance de este pedido):** comparación lado a lado entre el primer chequeo y el último. El timeline ya permite ver la evolución scrolleando; si Tín lo pide, es un agregado natural sobre los mismos datos.
+
+---
+
+## Fix — duplicado por timezone en el límite con Prisma (2026-08-18)
+
+Tín entrenó hoy (Full upper, sesión real cerrada) y pidió verificar que todo estuviera bien tras la migración. Al revisar la base de producción directamente (Supabase MCP), encontré:
+
+- **La sesión de hoy estaba perfecta:** los 11 ejercicios de Full upper marcados, pesos reales cargados, cardio hecho, `closedAt` correcto. Se entrenó ya con el Perfect Split desplegado, justo antes del bloque de animaciones/fotos — no hubo ningún problema de migración ahí.
+- **Una lectura de InBody duplicada:** dos filas con la misma fecha (10/08) pero timestamps distintos (`05:00:00` vs `00:00:00`). Causa raíz: `fromIsoDate`/`toIsoDate` (`musculit-state.ts`) construyen y leen fechas con la hora **local del proceso que corre el código** — correcto para "qué día es hoy" del lado del cliente, pero peligroso en el límite con Prisma: mi máquina local (GMT-5, usada para testear durante esta sesión) y Vercel (UTC, donde corre producción) generan timestamps distintos para el mismo string ISO, así que el índice único `[userId, date]` no reconocía las dos filas como la misma medición.
+- El índice único en sí **sí existe** en la base (se verificó con `pg_indexes`, no solo `pg_constraint` que no lo mostraba por ser un detalle de catalogación de Postgres, no un problema real) — no era un tema de constraint faltante, era el timestamp mismo el que no coincidía.
+- `WorkoutSession` mostró el mismo síntoma (las 4 filas tenían `createdAt` idéntico, de esta noche) pero **sin pérdida de datos real**: el contenido de cada sesión (`completedExerciseIds`, `setWeights`, `closedAt`) vive en el objeto `state.sessions` del cliente, no en metadata de la fila — al recrearse la fila por el mismo desajuste de timezone, el contenido se reescribió correctamente. Solo cambiaron `id`/`createdAt` internos, invisible para la app y para Tín.
+
+**Fix:** se agregaron `dbDateFromIso`/`isoFromDbDate` en `app-state-store.ts` — versión UTC-explícita de la conversión fecha↔string, usada *solo* en el límite de lectura/escritura con Prisma (`date`/`sessionDate` de `WorkoutSession`, `InBodyReading`, `NutritionLog`, `ProgressCheckin`). La resolución de qué rutina corresponde a una fecha (`getTrainingDayFromDate`, que necesita el día de semana real) sigue usando `fromIsoDate` con semántica local — tocarla arriesgaba resolver mal la rutina si se corre en un proceso no-UTC. Como producción corre siempre en Vercel (UTC), ahí `fromIsoDate` y la version UTC ya coincidian — el bug solo se manifestaba cuando yo mezclaba escrituras desde mi entorno local (GMT-5) contra la misma base de producción durante el desarrollo.
+
+Limpieza: se borró la fila duplicada de InBody con el timestamp desalineado (`05:00:00`), quedó la que coincide con el estándar UTC nuevo. Verificado con curl contra producción: 1 sola lectura de InBody, sesión de hoy intacta (11 ejercicios, cardio, closedAt). `tsc`, `eslint`, `vitest` y `npm run build` limpios tras el fix.
+
+**Lección para sesiones futuras:** no volver a correr el dev server local apuntando a `DATABASE_URL` de producción para testear — usar el fallback local (sin `DATABASE_URL`) o una base de desarrollo separada, para no reintroducir este tipo de desajuste.

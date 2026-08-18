@@ -18,7 +18,6 @@ import {
   getDayIdFromDate,
   getTrainingDayFromDate,
   initialState,
-  toIsoDate,
 } from "@/lib/musculit-state";
 import { SEEDED_INBODY_READING } from "@/lib/inbody-data";
 import { inferSetCount, normalizeSetWeights } from "@/lib/set-utils";
@@ -27,6 +26,31 @@ const DEV_STORE_PATH = path.join(process.cwd(), ".musculit-dev-store.json");
 const USER_SLUG = "martin-bundy";
 
 export type StorageMode = "database" | "local-fallback";
+
+/**
+ * fromIsoDate/toIsoDate (musculit-state.ts) construyen y leen fechas con la
+ * hora LOCAL del proceso que corre el codigo — correcto para "que dia es hoy"
+ * del lado del cliente, pero peligroso en el limite con Prisma: el mismo
+ * string ISO puede mapear a timestamps distintos si el server que escribe y
+ * el que lee corren en zonas horarias distintas (Vercel es UTC; un dev local
+ * no necesariamente), rompiendo la unicidad de [userId, date] y generando
+ * duplicados. dbDateFromIso/isoFromDbDate son la version UTC-segura, usada
+ * solo para escribir/leer las columnas `date`/`sessionDate` en Postgres — la
+ * resolucion de que rutina corresponde a una fecha sigue usando
+ * fromIsoDate/getTrainingDayFromDate con semantica local, que es la correcta
+ * ahi.
+ */
+function dbDateFromIso(iso: string): Date {
+  const [year, month, day] = iso.split("-").map(Number);
+  return new Date(Date.UTC(year, month - 1, day));
+}
+
+function isoFromDbDate(date: Date): string {
+  const year = date.getUTCFullYear();
+  const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(date.getUTCDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
 
 export async function loadPersistedAppState() {
   if (hasDatabaseConnection()) {
@@ -129,7 +153,7 @@ async function loadFromDatabase() {
   const sessions: Record<string, SessionRecord> = {};
 
   for (const session of user.sessions) {
-    const isoDate = toIsoDate(session.sessionDate);
+    const isoDate = isoFromDbDate(session.sessionDate);
     sessions[isoDate] = {
       date: isoDate,
       dayId: session.dayId as DayId,
@@ -151,7 +175,7 @@ async function loadFromDatabase() {
 
   const inBodyReadings: InBodyReading[] = user.inBodyReadings.map((row) => ({
     id: row.id,
-    date: toIsoDate(row.date),
+    date: isoFromDbDate(row.date),
     weightKg: row.weightKg,
     imc: row.imc,
     bodyFatPercent: row.bodyFatPercent,
@@ -174,7 +198,7 @@ async function loadFromDatabase() {
 
   const nutritionLogs: Record<string, NutritionSelection> = {};
   for (const row of user.nutritionLogs) {
-    nutritionLogs[toIsoDate(row.date)] = {
+    nutritionLogs[isoFromDbDate(row.date)] = {
       mealChoices: normalizeMealChoices(row.mealChoices),
       extrasSelected: normalizeExtrasSelected(row.extrasSelected),
     };
@@ -182,7 +206,7 @@ async function loadFromDatabase() {
 
   const progressCheckins: ProgressCheckin[] = user.progressCheckins.map((row) => ({
     id: row.id,
-    date: toIsoDate(row.date),
+    date: isoFromDbDate(row.date),
     weightKg: row.weightKg,
     photos: row.photos.map((photo) => ({
       angle: photo.angle as ProgressCheckin["photos"][number]["angle"],
@@ -260,12 +284,12 @@ async function saveToDatabase(state: AppState) {
       select: { id: true, sessionDate: true, contentHash: true },
     });
     const existingByIso = new Map(
-      existingSessions.map((row) => [toIsoDate(row.sessionDate), row]),
+      existingSessions.map((row) => [isoFromDbDate(row.sessionDate), row]),
     );
 
     const incomingIsoDates = new Set(Object.keys(state.sessions));
     const staleIds = existingSessions
-      .filter((row) => !incomingIsoDates.has(toIsoDate(row.sessionDate)))
+      .filter((row) => !incomingIsoDates.has(isoFromDbDate(row.sessionDate)))
       .map((row) => row.id);
     if (staleIds.length) {
       await tx.workoutSession.deleteMany({ where: { id: { in: staleIds } } });
@@ -289,7 +313,7 @@ async function saveToDatabase(state: AppState) {
 
       const day = getTrainingDayFromDate(fromIsoDate(isoDate), state.dayOverrides);
       const workout = await tx.workoutSession.upsert({
-        where: { userId_sessionDate: { userId: user.id, sessionDate: fromIsoDate(isoDate) } },
+        where: { userId_sessionDate: { userId: user.id, sessionDate: dbDateFromIso(isoDate) } },
         update: {
           dayId: session.dayId,
           completedCardio: session.completedCardio,
@@ -300,7 +324,7 @@ async function saveToDatabase(state: AppState) {
         },
         create: {
           userId: user.id,
-          sessionDate: fromIsoDate(isoDate),
+          sessionDate: dbDateFromIso(isoDate),
           dayId: session.dayId,
           completedCardio: session.completedCardio,
           journal: session.journal,
@@ -351,7 +375,7 @@ async function saveToDatabase(state: AppState) {
     });
     const incomingReadingIsoDates = new Set(state.inBodyReadings.map((reading) => reading.date));
     const staleReadingIds = existingReadings
-      .filter((row) => !incomingReadingIsoDates.has(toIsoDate(row.date)))
+      .filter((row) => !incomingReadingIsoDates.has(isoFromDbDate(row.date)))
       .map((row) => row.id);
     if (staleReadingIds.length) {
       await tx.inBodyReading.deleteMany({ where: { id: { in: staleReadingIds } } });
@@ -359,9 +383,9 @@ async function saveToDatabase(state: AppState) {
     for (const reading of state.inBodyReadings) {
       const row = inBodyReadingRow(reading);
       await tx.inBodyReading.upsert({
-        where: { userId_date: { userId: user.id, date: fromIsoDate(reading.date) } },
+        where: { userId_date: { userId: user.id, date: dbDateFromIso(reading.date) } },
         update: row,
-        create: { userId: user.id, date: fromIsoDate(reading.date), ...row },
+        create: { userId: user.id, date: dbDateFromIso(reading.date), ...row },
       });
     }
 
@@ -371,10 +395,10 @@ async function saveToDatabase(state: AppState) {
       where: { userId: user.id },
       select: { id: true, date: true, mealChoices: true, extrasSelected: true },
     });
-    const existingLogsByIso = new Map(existingLogs.map((row) => [toIsoDate(row.date), row]));
+    const existingLogsByIso = new Map(existingLogs.map((row) => [isoFromDbDate(row.date), row]));
     const incomingLogIsoDates = new Set(Object.keys(state.nutritionLogs));
     const staleLogIds = existingLogs
-      .filter((row) => !incomingLogIsoDates.has(toIsoDate(row.date)))
+      .filter((row) => !incomingLogIsoDates.has(isoFromDbDate(row.date)))
       .map((row) => row.id);
     if (staleLogIds.length) {
       await tx.nutritionLog.deleteMany({ where: { id: { in: staleLogIds } } });
@@ -387,9 +411,9 @@ async function saveToDatabase(state: AppState) {
         continue;
       }
       await tx.nutritionLog.upsert({
-        where: { userId_date: { userId: user.id, date: fromIsoDate(isoDate) } },
+        where: { userId_date: { userId: user.id, date: dbDateFromIso(isoDate) } },
         update: { mealChoices, extrasSelected },
-        create: { userId: user.id, date: fromIsoDate(isoDate), mealChoices, extrasSelected },
+        create: { userId: user.id, date: dbDateFromIso(isoDate), mealChoices, extrasSelected },
       });
     }
 
@@ -401,10 +425,10 @@ async function saveToDatabase(state: AppState) {
       where: { userId: user.id },
       select: { id: true, date: true, contentHash: true },
     });
-    const existingCheckinsByIso = new Map(existingCheckins.map((row) => [toIsoDate(row.date), row]));
+    const existingCheckinsByIso = new Map(existingCheckins.map((row) => [isoFromDbDate(row.date), row]));
     const incomingCheckinIsoDates = new Set(state.progressCheckins.map((checkin) => checkin.date));
     const staleCheckinIds = existingCheckins
-      .filter((row) => !incomingCheckinIsoDates.has(toIsoDate(row.date)))
+      .filter((row) => !incomingCheckinIsoDates.has(isoFromDbDate(row.date)))
       .map((row) => row.id);
     if (staleCheckinIds.length) {
       await tx.progressCheckin.deleteMany({ where: { id: { in: staleCheckinIds } } });
@@ -416,9 +440,9 @@ async function saveToDatabase(state: AppState) {
         continue;
       }
       const row = await tx.progressCheckin.upsert({
-        where: { userId_date: { userId: user.id, date: fromIsoDate(checkin.date) } },
+        where: { userId_date: { userId: user.id, date: dbDateFromIso(checkin.date) } },
         update: { weightKg: checkin.weightKg, contentHash },
-        create: { userId: user.id, date: fromIsoDate(checkin.date), weightKg: checkin.weightKg, contentHash },
+        create: { userId: user.id, date: dbDateFromIso(checkin.date), weightKg: checkin.weightKg, contentHash },
       });
       await tx.progressPhoto.deleteMany({ where: { checkinId: row.id } });
       if (checkin.photos.length) {
