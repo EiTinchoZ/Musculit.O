@@ -1,0 +1,1001 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#0C1219">
+<title>Musculit.O — Panel de Martín Bundy</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#0C1219;
+  --panel:#141E2A;
+  --panel-2:#1B2836;
+  --line:#27394B;
+  --line-soft:#1E2E3E;
+  --text:#EDF3F9;
+  --text-dim:#A9BCCD;
+  --text-faint:#8A9DAF;
+  --lean:#4FD6C5;
+  --lean-dim:#123C36;
+  --fat:#FF8A5C;
+  --fat-dim:#4A2317;
+  --warn:#FFD470;
+  --radius:10px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{
+  -webkit-text-size-adjust:100%;
+  background:var(--ink);
+  color-scheme:dark;
+}
+body{
+  background:var(--ink);
+  color:var(--text);
+  font-family:'IBM Plex Sans',system-ui,-apple-system,sans-serif;
+  font-size:15px;
+  line-height:1.6;
+  padding-bottom:60px;
+  overflow-x:hidden;
+}
+.wrap{max-width:1080px;margin:0 auto;padding:0 18px}
+
+/* ---------- HEADER ---------- */
+header{
+  border-bottom:1px solid var(--line);
+  background:linear-gradient(180deg,#101A25 0%,var(--ink) 100%);
+  padding:34px 0 0;
+}
+.brandline{
+  display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;
+  font-family:'IBM Plex Mono',monospace;
+  font-size:11px;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--text-faint);
+}
+.brandline .dot{color:var(--fat)}
+h1{
+  font-family:'Barlow Condensed',sans-serif;
+  font-weight:700;
+  font-size:clamp(38px,8vw,64px);
+  line-height:1.02;
+  letter-spacing:-.01em;
+  text-transform:uppercase;
+  margin:10px 0 4px;
+}
+h1 .thin{font-weight:500;color:var(--text-dim)}
+.tagline{color:var(--text-dim);max-width:56ch;margin-bottom:22px;font-size:14.5px}
+
+/* stat strip */
+.strip{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(118px,1fr));
+  gap:1px;
+  background:var(--line-soft);
+  border:1px solid var(--line-soft);
+  border-radius:var(--radius) var(--radius) 0 0;
+  overflow:hidden;
+  margin-bottom:-1px;
+}
+.strip div{background:var(--panel);padding:12px 14px}
+.strip .k{
+  font-family:'IBM Plex Mono',monospace;
+  font-size:10px;letter-spacing:.13em;text-transform:uppercase;
+  color:var(--text-faint);display:block;margin-bottom:3px;
+}
+.strip .v{
+  font-family:'IBM Plex Mono',monospace;
+  font-size:20px;font-weight:600;color:var(--text);
+  display:block;line-height:1.2;
+}
+.strip .v small{font-size:11px;color:var(--text-dim);font-weight:400;margin-left:2px}
+
+/* ---------- TABS ---------- */
+nav{
+  position:sticky;top:0;z-index:30;
+  background:rgba(12,18,25,.94);
+  backdrop-filter:blur(10px);
+  border-bottom:1px solid var(--line);
+  margin-top:26px;
+}
+.tabs{display:flex;gap:2px;overflow-x:auto;scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+.tab{
+  flex:0 0 auto;
+  appearance:none;background:none;border:none;cursor:pointer;
+  font-family:'Barlow Condensed',sans-serif;
+  font-size:19px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;
+  color:var(--text-dim);
+  padding:16px 18px 13px;
+  border-bottom:2px solid transparent;
+  transition:color .18s,border-color .18s;
+  white-space:nowrap;
+}
+.tab:hover{color:var(--text)}
+.tab[aria-selected="true"]{color:var(--text);border-bottom-color:var(--fat)}
+.tab .num{
+  font-family:'IBM Plex Mono',monospace;
+  font-size:10px;vertical-align:super;margin-right:5px;color:var(--text-faint);
+}
+.tab[aria-selected="true"] .num{color:var(--fat)}
+.tab:focus-visible{outline:2px solid var(--lean);outline-offset:-4px}
+
+/* ---------- LAYOUT ---------- */
+.panelview{display:none;padding-top:30px}
+.panelview.on{display:block}
+.sec{margin-bottom:34px}
+.sechead{
+  display:flex;align-items:baseline;gap:12px;
+  border-bottom:1px solid var(--line);
+  padding-bottom:8px;margin-bottom:18px;flex-wrap:wrap;
+}
+.sechead h2{
+  font-family:'Barlow Condensed',sans-serif;
+  font-weight:600;font-size:26px;letter-spacing:.03em;text-transform:uppercase;
+}
+.sechead .note{
+  font-family:'IBM Plex Mono',monospace;font-size:10.5px;
+  letter-spacing:.11em;text-transform:uppercase;color:var(--text-faint);
+}
+
+/* ---------- METRIC CARDS ---------- */
+.grid{display:grid;gap:14px}
+.g2{grid-template-columns:repeat(auto-fit,minmax(290px,1fr))}
+.g3{grid-template-columns:repeat(auto-fit,minmax(215px,1fr))}
+
+.card{
+  background:var(--panel);
+  border:1px solid var(--line-soft);
+  border-radius:var(--radius);
+  padding:16px 17px;
+}
+.card .label{
+  font-family:'IBM Plex Mono',monospace;
+  font-size:10px;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--text-faint);margin-bottom:7px;
+}
+.card .big{
+  font-family:'IBM Plex Mono',monospace;
+  font-size:29px;font-weight:600;line-height:1.1;
+}
+.card .big small{font-size:13px;color:var(--text-dim);font-weight:400;margin-left:3px}
+.badge{
+  display:inline-block;
+  font-family:'IBM Plex Mono',monospace;
+  font-size:9.5px;letter-spacing:.11em;text-transform:uppercase;
+  padding:3px 8px;border-radius:3px;margin-left:auto;
+}
+.badge.ok{background:#123C36;color:#6FE8D8;border:1px solid #1E5B52}
+.badge.mid{background:#3A3418;color:#FFD470;border:1px solid #5A5228}
+.cardtop{display:flex;align-items:center;gap:10px;margin-bottom:9px}
+.cardtop .label{margin:0}
+
+/* range bar */
+.range{margin-top:14px}
+.track{
+  position:relative;height:7px;border-radius:4px;
+  background:linear-gradient(90deg,#4A2418 0%,#6B3520 12%,#1F5F58 30%,#1F5F58 70%,#6B3520 88%,#4A2418 100%);
+}
+.track .zone{
+  position:absolute;top:0;bottom:0;
+  border-left:1px solid rgba(230,237,244,.28);
+  border-right:1px solid rgba(230,237,244,.28);
+}
+.mark{
+  position:absolute;top:-5px;width:3px;height:17px;
+  background:var(--text);border-radius:2px;
+  transform:translateX(-50%);
+  box-shadow:0 0 0 2px var(--panel);
+}
+.scale{
+  display:flex;justify-content:space-between;
+  font-family:'IBM Plex Mono',monospace;
+  font-size:10px;color:var(--text-faint);margin-top:7px;
+}
+.card p.hint{font-size:13px;color:var(--text-dim);margin-top:11px;line-height:1.5}
+
+/* ---------- SEGMENT MAP (signature) ---------- */
+.segwrap{
+  background:var(--panel);
+  border:1px solid var(--line-soft);
+  border-radius:var(--radius);
+  padding:20px 18px 22px;
+}
+.segtoggle{display:flex;gap:8px;margin-bottom:22px;flex-wrap:wrap}
+.segtoggle button{
+  appearance:none;cursor:pointer;
+  background:var(--panel-2);
+  border:1px solid var(--line);
+  color:var(--text-dim);
+  font-family:'IBM Plex Mono',monospace;
+  font-size:11px;letter-spacing:.11em;text-transform:uppercase;
+  padding:9px 15px;border-radius:6px;
+  transition:all .18s;
+}
+.segtoggle button:hover{border-color:var(--text-faint);color:var(--text)}
+.segtoggle button[aria-pressed="true"]{color:#06101A;font-weight:700}
+.segtoggle button.leanbtn[aria-pressed="true"]{background:var(--lean);border-color:var(--lean)}
+.segtoggle button.fatbtn[aria-pressed="true"]{background:var(--fat);border-color:var(--fat)}
+.segtoggle button:focus-visible{outline:2px solid var(--text);outline-offset:2px}
+
+.segbody{
+  display:grid;
+  grid-template-columns:1fr auto 1fr;
+  gap:16px;
+  align-items:center;
+}
+.segcol{display:flex;flex-direction:column;gap:44px}
+.segcol.left{align-items:flex-end;text-align:right}
+.segcol.right{align-items:flex-start;text-align:left}
+.segitem .n{
+  font-family:'IBM Plex Mono',monospace;
+  font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--text-faint);line-height:1.5;
+}
+.segitem .val{
+  font-family:'IBM Plex Mono',monospace;
+  font-size:23px;font-weight:600;line-height:1.2;
+  transition:color .25s;
+}
+figure svg{display:block;height:auto;width:100%;max-width:170px}
+figure svg path,figure svg circle{transition:fill .3s}
+.trunkchip{
+  margin-top:20px;
+  display:flex;align-items:center;justify-content:center;gap:14px;
+  background:var(--panel-2);
+  border:1px solid var(--line);
+  border-radius:8px;padding:12px 16px;flex-wrap:wrap;
+}
+.trunkchip .n{
+  font-family:'IBM Plex Mono',monospace;
+  font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--text-faint);
+}
+.trunkchip .val{font-family:'IBM Plex Mono',monospace;font-size:26px;font-weight:600}
+.readout{
+  margin-top:18px;padding-top:16px;border-top:1px solid var(--line-soft);
+  font-size:13.5px;color:var(--text-dim);line-height:1.6;
+}
+.readout strong{color:var(--text);font-weight:600}
+
+/* ---------- TABLES ---------- */
+.tablewrap{overflow-x:auto;border:1px solid var(--line-soft);border-radius:var(--radius)}
+table{width:100%;border-collapse:collapse;font-size:13.5px;min-width:430px}
+thead th{
+  background:var(--panel-2);
+  font-family:'IBM Plex Mono',monospace;
+  font-size:9.5px;letter-spacing:.13em;text-transform:uppercase;
+  color:var(--text-dim);font-weight:500;
+  text-align:left;padding:10px 13px;
+  border-bottom:1px solid var(--line);
+}
+tbody td{padding:9px 13px;border-bottom:1px solid var(--line-soft);vertical-align:top}
+tbody tr:last-child td{border-bottom:none}
+tbody tr:nth-child(odd){background:var(--panel)}
+tbody tr:nth-child(even){background:#111A24}
+td.grp{color:var(--text-dim);font-size:12.5px}
+td.set{font-family:'IBM Plex Mono',monospace;font-size:12.5px;white-space:nowrap;color:var(--lean)}
+
+/* ---------- WEEK ---------- */
+.week{display:grid;grid-template-columns:repeat(auto-fit,minmax(128px,1fr));gap:10px}
+.daycard{
+  background:var(--panel);
+  border:1px solid var(--line-soft);
+  border-left:3px solid var(--line);
+  border-radius:8px;padding:13px 14px;
+}
+.daycard.pull{border-left-color:#5B8DEF}
+.daycard.push{border-left-color:#A970D6}
+.daycard.legs{border-left-color:var(--lean)}
+.daycard.upper{border-left-color:#8B7BF0}
+.daycard.cardio{border-left-color:var(--fat)}
+.daycard.rest{border-left-color:var(--text-faint)}
+.daycard .d{
+  font-family:'IBM Plex Mono',monospace;
+  font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--text-faint);margin-bottom:5px;
+}
+.daycard .s{
+  font-family:'Barlow Condensed',sans-serif;
+  font-size:20px;font-weight:600;text-transform:uppercase;letter-spacing:.03em;
+  line-height:1.15;
+}
+.daycard .m{font-size:12px;color:var(--text-dim);margin-top:4px;line-height:1.45}
+
+.blockhead{
+  display:flex;align-items:center;gap:11px;
+  margin:26px 0 12px;flex-wrap:wrap;
+}
+.blockhead h3{
+  font-family:'Barlow Condensed',sans-serif;
+  font-size:23px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;
+}
+.blockhead .tag{
+  font-family:'IBM Plex Mono',monospace;
+  font-size:10px;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--text-faint);
+}
+.rule{flex:1;height:1px;background:var(--line);min-width:20px}
+
+/* ---------- MENU BUILDER ---------- */
+.mealcard{
+  background:var(--panel);
+  border:1px solid var(--line-soft);
+  border-radius:var(--radius);
+  padding:16px 17px;margin-bottom:13px;
+}
+.mealtop{
+  display:flex;align-items:center;justify-content:space-between;
+  gap:12px;margin-bottom:11px;flex-wrap:wrap;
+}
+.mealtop .name{
+  font-family:'Barlow Condensed',sans-serif;
+  font-size:21px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;
+}
+.swap{
+  appearance:none;cursor:pointer;
+  background:var(--panel-2);border:1px solid var(--line);
+  color:var(--text-dim);
+  font-family:'IBM Plex Mono',monospace;
+  font-size:10px;letter-spacing:.1em;text-transform:uppercase;
+  padding:7px 13px;border-radius:6px;transition:all .18s;
+}
+.swap:hover{border-color:var(--fat);color:var(--fat)}
+.swap:focus-visible{outline:2px solid var(--fat);outline-offset:2px}
+.optcount{
+  font-family:'IBM Plex Mono',monospace;
+  font-size:10px;color:var(--text-faint);letter-spacing:.08em;
+}
+.mealitems{list-style:none;margin-bottom:12px}
+.mealitems li{
+  position:relative;padding-left:16px;
+  font-size:14px;color:var(--text);line-height:1.55;margin-bottom:4px;
+}
+.mealitems li::before{
+  content:"";position:absolute;left:0;top:9px;
+  width:5px;height:5px;border-radius:50%;background:var(--line);
+}
+.mealmacros{
+  display:flex;gap:16px;flex-wrap:wrap;
+  padding-top:11px;border-top:1px solid var(--line-soft);
+  font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:var(--text-faint);
+}
+.mealmacros b{color:var(--text-dim);font-weight:600}
+
+/* extras */
+.extras{display:flex;flex-wrap:wrap;gap:9px}
+.chip{
+  appearance:none;cursor:pointer;
+  background:var(--panel);border:1px solid var(--line);
+  color:var(--text-dim);
+  font-size:13px;padding:9px 14px;border-radius:20px;
+  transition:all .18s;text-align:left;
+}
+.chip:hover{border-color:var(--text-faint);color:var(--text)}
+.chip[aria-pressed="true"]{
+  background:#123C36;border-color:var(--lean);color:#7FEEDF;font-weight:500;
+}
+.chip:focus-visible{outline:2px solid var(--lean);outline-offset:2px}
+.chip .kc{font-family:'IBM Plex Mono',monospace;font-size:10.5px;opacity:.75;margin-left:6px}
+
+/* totals */
+.totals{
+  position:sticky;bottom:0;z-index:20;
+  background:rgba(20,30,42,.97);
+  backdrop-filter:blur(10px);
+  border:1px solid var(--line);
+  border-radius:var(--radius);
+  padding:15px 17px;margin-top:20px;
+}
+.totalsgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(132px,1fr));gap:14px}
+.tm .tlab{
+  display:flex;justify-content:space-between;align-items:baseline;gap:8px;
+  font-family:'IBM Plex Mono',monospace;font-size:10px;
+  letter-spacing:.12em;text-transform:uppercase;color:var(--text-faint);
+  margin-bottom:6px;
+}
+.tm .tval{color:var(--text);font-size:13px;letter-spacing:0}
+.bar{height:5px;background:var(--line-soft);border-radius:3px;overflow:hidden}
+.bar i{display:block;height:100%;border-radius:3px;transition:width .35s ease}
+.bar i.kcal{background:var(--fat)}
+.bar i.p{background:var(--lean)}
+.bar i.f{background:var(--warn)}
+.bar i.c{background:#5B8DEF}
+
+/* misc */
+.rules{display:grid;gap:9px;grid-template-columns:repeat(auto-fit,minmax(230px,1fr))}
+.rule-item{
+  background:var(--panel);border:1px solid var(--line-soft);
+  border-radius:8px;padding:12px 14px;font-size:13.5px;color:var(--text-dim);
+  line-height:1.5;
+}
+.rule-item b{
+  display:block;color:var(--text);font-weight:600;
+  font-family:'IBM Plex Mono',monospace;font-size:10px;
+  letter-spacing:.13em;text-transform:uppercase;margin-bottom:5px;
+}
+.callout{
+  background:linear-gradient(135deg,#1A2634,#141E2A);
+  border:1px solid var(--line);border-left:3px solid var(--fat);
+  border-radius:8px;padding:15px 17px;font-size:13.5px;
+  color:var(--text-dim);line-height:1.6;
+}
+.callout strong{color:var(--text);font-weight:600}
+footer{
+  margin-top:44px;padding-top:18px;border-top:1px solid var(--line-soft);
+  font-family:'IBM Plex Mono',monospace;font-size:10.5px;
+  color:var(--text-faint);letter-spacing:.06em;line-height:1.8;
+}
+
+@media (max-width:640px){
+  .segbody{grid-template-columns:1fr;gap:18px;justify-items:center}
+  .segcol{flex-direction:row;gap:26px;justify-content:center;width:100%}
+  .segcol.left,.segcol.right{align-items:center;text-align:center}
+  figure{order:-1}
+  .segitem .val{font-size:20px}
+  .strip .v{font-size:17px}
+}
+@media (prefers-reduced-motion:reduce){
+  *{transition:none!important;animation:none!important;scroll-behavior:auto!important}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <div class="brandline">
+      <span>Musculit.O</span><span class="dot">/</span><span>Panel personal</span>
+      <span class="dot">/</span><span>Bioimpedancia 10.08.2026</span>
+    </div>
+    <h1>Martín <span class="thin">Bundy</span></h1>
+    <p class="tagline">
+      Recomposición corporal: bajar la grasa concentrada en el tronco, ganar masa magra
+      y subir de peso sin perder definición. Datos, entreno y comida en un solo lugar.
+    </p>
+    <div class="strip">
+      <div><span class="k">Peso</span><span class="v">69.2<small>kg</small></span></div>
+      <div><span class="k">Grasa corporal</span><span class="v">12.9<small>%</small></span></div>
+      <div><span class="k">Masa magra</span><span class="v">56.3<small>kg</small></span></div>
+      <div><span class="k">M. esquelética</span><span class="v">34.7<small>kg</small></span></div>
+      <div><span class="k">G. visceral</span><span class="v">4</span></div>
+      <div><span class="k">TMB</span><span class="v">1711<small>kcal</small></span></div>
+    </div>
+  </div>
+</header>
+
+<nav>
+  <div class="wrap">
+    <div class="tabs" role="tablist">
+      <button class="tab" role="tab" aria-selected="true"  data-view="cuerpo"><span class="num">01</span>Cuerpo</button>
+      <button class="tab" role="tab" aria-selected="false" data-view="entreno"><span class="num">02</span>Entreno</button>
+      <button class="tab" role="tab" aria-selected="false" data-view="cocina"><span class="num">03</span>Cocina</button>
+    </div>
+  </div>
+</nav>
+
+<main class="wrap">
+
+<!-- ============ 01 CUERPO ============ -->
+<section class="panelview on" id="view-cuerpo" role="tabpanel">
+
+  <div class="sec">
+    <div class="sechead">
+      <h2>Mapa segmentario</h2>
+      <span class="note">Dónde está el músculo · Dónde está la grasa</span>
+    </div>
+    <div class="segwrap">
+      <div class="segtoggle">
+        <button class="leanbtn" data-mode="lean" aria-pressed="true">Masa magra</button>
+        <button class="fatbtn"  data-mode="fat"  aria-pressed="false">Grasa</button>
+      </div>
+
+      <div class="segbody">
+        <div class="segcol left">
+          <div class="segitem">
+            <div class="n">Brazo derecho</div>
+            <div class="val" id="v-armR">3.53<span style="font-size:13px">kg</span></div>
+          </div>
+          <div class="segitem">
+            <div class="n">Pierna derecha</div>
+            <div class="val" id="v-legR">10.48<span style="font-size:13px">kg</span></div>
+          </div>
+        </div>
+
+        <figure>
+          <svg viewBox="0 0 200 420" role="img" aria-label="Diagrama segmentario del cuerpo">
+            <circle id="s-head" cx="100" cy="32" r="22" fill="#27394B"/>
+            <path id="s-torso" d="M68,58 L132,58 L138,140 L128,215 L72,215 L62,140 Z" fill="#27394B"/>
+            <path id="s-armR"  d="M68,60 L54,66 L40,150 L34,205 L48,208 L58,150 L70,80 Z" fill="#27394B"/>
+            <path id="s-armL"  d="M132,60 L146,66 L160,150 L166,205 L152,208 L142,150 L130,80 Z" fill="#27394B"/>
+            <path id="s-legR"  d="M74,215 L98,215 L96,300 L92,398 L72,398 L74,300 Z" fill="#27394B"/>
+            <path id="s-legL"  d="M102,215 L126,215 L126,300 L128,398 L108,398 L104,300 Z" fill="#27394B"/>
+          </svg>
+        </figure>
+
+        <div class="segcol right">
+          <div class="segitem">
+            <div class="n">Brazo izquierdo</div>
+            <div class="val" id="v-armL">3.54<span style="font-size:13px">kg</span></div>
+          </div>
+          <div class="segitem">
+            <div class="n">Pierna izquierda</div>
+            <div class="val" id="v-legL">10.23<span style="font-size:13px">kg</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="trunkchip">
+        <span class="n">Tronco</span>
+        <span class="val" id="v-trunk">28.55<span style="font-size:14px">kg</span></span>
+      </div>
+
+      <p class="readout" id="segRead">
+        Tu masa magra está bien repartida y casi perfectamente simétrica entre lado derecho
+        e izquierdo — diferencia de apenas <strong>0.25 kg</strong> en piernas y
+        <strong>0.01 kg</strong> en brazos. No tienes desbalances que corregir.
+      </p>
+    </div>
+  </div>
+
+  <div class="sec">
+    <div class="sechead">
+      <h2>Indicadores</h2>
+      <span class="note">Marca = tu valor · Zona clara = rango normal</span>
+    </div>
+    <div class="grid g2">
+
+      <div class="card">
+        <div class="cardtop"><span class="label">Grasa corporal</span><span class="badge ok">Ideal</span></div>
+        <div class="big">12.9<small>%</small></div>
+        <div class="range">
+          <div class="track"><div class="zone" style="left:15%;right:25%"></div><div class="mark" style="left:39.5%"></div></div>
+          <div class="scale"><span>5</span><span>8</span><span>19</span><span>25</span></div>
+        </div>
+        <p class="hint">Justo en medio del rango sano. No necesitas bajar de aquí — bajar más te costaría músculo.</p>
+      </div>
+
+      <div class="card">
+        <div class="cardtop"><span class="label">Masa magra</span><span class="badge mid">Normal, parte baja</span></div>
+        <div class="big">56.3<small>kg</small></div>
+        <div class="range">
+          <div class="track"><div class="zone" style="left:39.5%;right:43.5%"></div><div class="mark" style="left:44.9%"></div></div>
+          <div class="scale"><span>37</span><span>54</span><span>61.3</span><span>80</span></div>
+        </div>
+        <p class="hint">Aquí está tu margen real de mejora. Apenas entraste al rango normal — hay espacio para crecer.</p>
+      </div>
+
+      <div class="card">
+        <div class="cardtop"><span class="label">Grasa visceral</span><span class="badge ok">Ideal</span></div>
+        <div class="big">4</div>
+        <div class="range">
+          <div class="track"><div class="zone" style="left:0%;right:27%"></div><div class="mark" style="left:27.3%"></div></div>
+          <div class="scale"><span>1</span><span></span><span>9</span><span>12</span></div>
+        </div>
+        <p class="hint">La grasa que rodea los órganos. La tuya está baja — esto es lo que más importa para salud.</p>
+      </div>
+
+      <div class="card">
+        <div class="cardtop"><span class="label">Índice de masa corporal</span><span class="badge ok">Normal</span></div>
+        <div class="big">22.9<small>kg/m²</small></div>
+        <div class="range">
+          <div class="track"><div class="zone" style="left:28%;right:40.5%"></div><div class="mark" style="left:48.5%"></div></div>
+          <div class="scale"><span>13</span><span>18.6</span><span>24.9</span><span>33</span></div>
+        </div>
+        <p class="hint">Dato flojo por sí solo: no distingue músculo de grasa. Úsalo solo como referencia general.</p>
+      </div>
+
+      <div class="card">
+        <div class="cardtop"><span class="label">Agua corporal</span><span class="badge ok">Normal</span></div>
+        <div class="big">41.2<small>L</small></div>
+        <div class="range">
+          <div class="track"><div class="zone" style="left:30%;right:40%"></div><div class="mark" style="left:49.3%"></div></div>
+          <div class="scale"><span>24</span><span>34.6</span><span>45</span><span>59</span></div>
+        </div>
+        <p class="hint">Meta diaria de agua: tu peso × 40 ml = <strong style="color:var(--text)">2.8 L al día</strong>.</p>
+      </div>
+
+      <div class="card">
+        <div class="cardtop"><span class="label">Masa muscular esquelética</span></div>
+        <div class="big">34.7<small>kg</small></div>
+        <div class="range">
+          <div class="track"><div class="zone" style="left:32%;right:32%"></div><div class="mark" style="left:44%"></div></div>
+          <div class="scale"><span>Bajo</span><span></span><span></span><span>Alto</span></div>
+        </div>
+        <p class="hint">Índice apendicular 9.18 (normal). Es el músculo real de brazos y piernas.</p>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="sec">
+    <div class="sechead"><h2>Lectura del examen</h2><span class="note">Qué significa todo junto</span></div>
+    <div class="callout">
+      <strong>El 91% de tu grasa está en el tronco.</strong> De 8.9 kg de grasa total, 8.09 kg están ahí —
+      brazos y piernas prácticamente no tienen (0.3 kg y 0.1 kg). Por eso sientes barriga aunque tu
+      porcentaje general sea bueno.<br><br>
+      <strong>No necesitas bajar de peso.</strong> El InBody sugiere −3.35 kg, pero ese número sale solo de
+      tu altura y no distingue músculo de grasa. Tu control de grasa real es de +0.08 kg: casi nada.
+      Tu control de masa magra sugiere ganar 1.27 kg.<br><br>
+      <strong>La jugada correcta:</strong> superávit calórico leve, proteína alta, entrenar duro.
+      El músculo nuevo hace que la grasa del tronco se note menos, sin arriesgar volver a acumular ahí.
+    </div>
+  </div>
+
+</section>
+
+<!-- ============ 02 ENTRENO ============ -->
+<section class="panelview" id="view-entreno" role="tabpanel">
+
+  <div class="sec">
+    <div class="sechead"><h2>La semana</h2><span class="note">Perfect Split · Lunes libre</span></div>
+    <div class="week">
+      <div class="daycard rest"><div class="d">Lunes</div><div class="s">Descanso</div><div class="m">Recuperación</div></div>
+      <div class="daycard upper"><div class="d">Martes</div><div class="s">Full upper</div><div class="m">Pull + push completos</div></div>
+      <div class="daycard legs"><div class="d">Miércoles</div><div class="s">Piernas 1</div><div class="m">+ 20 min escaladora</div></div>
+      <div class="daycard pull"><div class="d">Jueves</div><div class="s">Espalda</div><div class="m">+ bíceps · trabajo pesado</div></div>
+      <div class="daycard cardio"><div class="d">Viernes · Angie</div><div class="s">Cardio</div><div class="m">Sin pesas</div></div>
+      <div class="daycard push"><div class="d">Sábado · Angie</div><div class="s">Pecho</div><div class="m">+ hombro y tríceps</div></div>
+      <div class="daycard legs"><div class="d">Domingo · Angie</div><div class="s">Piernas 2</div><div class="m">+ 20 min escaladora</div></div>
+    </div>
+    <p style="color:var(--text-dim);font-size:13.5px;margin-top:14px;line-height:1.6">
+      Pecho martes y sábado. Espalda martes y jueves. Piernas miércoles y domingo. El día de piernas se metió entre los dos de espalda a propósito: así el jueves llegas con 48 horas de recuperación en vez de 24, y el martes puede llevar pull y push completos sin comprometer nada.
+    </p>
+  </div>
+
+  <div class="sec">
+    <div class="sechead"><h2>Reglas</h2></div>
+    <div class="rules">
+      <div class="rule-item"><b>Descanso entre sets</b>2 minutos</div>
+      <div class="rule-item"><b>Intensidad</b>Cerca del fallo, sin romper técnica</div>
+      <div class="rule-item"><b>Rango dominante</b>8–10 repeticiones</div>
+      <div class="rule-item"><b>Día libre</b>Flexible — no pases de 5 días seguidos sin descansar</div>
+    </div>
+  </div>
+
+  <div class="sec">
+    <div class="blockhead"><h3>Martes · Full upper</h3><span class="tag">11 ejercicios · 34 series · 75–85 min</span><span class="rule"></span></div>
+    <div class="tablewrap"><table>
+      <thead><tr><th>Ejercicio</th><th>Grupo</th><th>Series</th></tr></thead>
+      <tbody><tr><td>Machine incline chest press</td><td class="grp">Pecho superior</td><td class="set">3 × 8–10</td></tr><tr><td>Dumbbell flat chest press</td><td class="grp">Pecho</td><td class="set">3 × 8–10</td></tr><tr><td>Machine chest flyes / Pecdec</td><td class="grp">Pecho</td><td class="set">2 × 10</td></tr><tr><td>Dumbbell shoulder press</td><td class="grp">Hombro frontal</td><td class="set">3 × 8</td></tr><tr><td>Cable lateral raises</td><td class="grp">Hombro lateral</td><td class="set">3 × 10 c/brazo</td></tr><tr><td>Cable overhead tricep extension</td><td class="grp">Tríceps</td><td class="set">3 × 8</td></tr><tr><td>Katana tricep extension</td><td class="grp">Tríceps</td><td class="set">2 × 8</td></tr><tr><td>Lat pulldown</td><td class="grp">Espalda</td><td class="set">3 × 8</td></tr><tr><td>Reverse pec deck</td><td class="grp">Deltoide posterior / Espalda alta</td><td class="set">2 × 10</td></tr><tr><td>Dumbbell incline curl</td><td class="grp">Bíceps</td><td class="set">3 × 8</td></tr><tr><td>Preacher curl</td><td class="grp">Bíceps</td><td class="set">2 × 8</td></tr><tr><td>Escaladora</td><td class="grp">Cardio</td><td class="set">15 min</td></tr></tbody>
+    </table></div>
+    <p style="color:var(--text-dim);font-size:13px;margin-top:10px;line-height:1.55">
+      Push va completo — pecho merece tu energía fresca. Espalda y bíceps van ligeros porque
+      tienen sus días dedicados (jueves). Pecdec y reverse pec deck son aislamientos que aportan
+      variedad de ángulo sin interferir con el trabajo pesado de otros días.
+    </p>
+  </div>
+
+  <div class="sec">
+    <div class="blockhead"><h3>Miércoles · Piernas 1</h3><span class="tag">Énfasis cuádriceps · + 20 min escaladora</span><span class="rule"></span></div>
+    <div class="tablewrap"><table>
+      <thead><tr><th>Ejercicio</th><th>Grupo</th><th>Series</th></tr></thead>
+      <tbody><tr><td>Squats en Smith</td><td class="grp">Cuádriceps / Glúteo</td><td class="set">3 al fallo</td></tr><tr><td>Leg extension</td><td class="grp">Cuádriceps</td><td class="set">3 al fallo</td></tr><tr><td>Lunges con mancuerna</td><td class="grp">Cuádriceps / Glúteo</td><td class="set">3 × pierna al fallo</td></tr><tr><td>Leg press</td><td class="grp">Cuádriceps / Glúteo</td><td class="set">3 al fallo</td></tr><tr><td>Hip thrust</td><td class="grp">Glúteo</td><td class="set">3 al fallo · última descendente</td></tr><tr><td>Elevación de pantorrillas</td><td class="grp">Pantorrilla</td><td class="set">3 al fallo</td></tr><tr><td>Escaladora</td><td class="grp">Cardio</td><td class="set">20 min</td></tr></tbody>
+    </table></div>
+  </div>
+
+  <div class="sec">
+    <div class="blockhead"><h3>Jueves · Espalda + bíceps</h3><span class="tag">Trabajo pesado · 48h después del martes</span><span class="rule"></span></div>
+    <div class="tablewrap"><table>
+      <thead><tr><th>Ejercicio</th><th>Grupo</th><th>Series</th></tr></thead>
+      <tbody><tr><td>Pull-up / assisted pull-up</td><td class="grp">Espalda</td><td class="set">3 × 8</td></tr><tr><td>Seated row</td><td class="grp">Espalda media</td><td class="set">3 × 8</td></tr><tr><td>Lat pulldown</td><td class="grp">Espalda</td><td class="set">3 × 8–10</td></tr><tr><td>Pull down brazos rectos</td><td class="grp">Espalda / Dorsal</td><td class="set">2 × 8</td></tr><tr><td>Hiperextensión lumbar</td><td class="grp">Lumbar / Erectores</td><td class="set">2 × 10</td></tr><tr><td>Reverse pec deck</td><td class="grp">Deltoide posterior / Espalda alta</td><td class="set">2 × 10</td></tr><tr><td>Preacher curl</td><td class="grp">Bíceps</td><td class="set">3 × 8</td></tr><tr><td>Dumbbell hammer curl</td><td class="grp">Bíceps / Braquial</td><td class="set">3 × 8</td></tr><tr><td>Crunch en máquina abdominal</td><td class="grp">Abdomen</td><td class="set">3 × 10–15 al fallo</td></tr>
+<tr><td>Leg raises</td><td class="grp">Abdomen inferior</td><td class="set">3 × 10–15 al fallo</td></tr></tbody>
+    </table></div>
+  </div>
+
+  <div class="sec">
+    <div class="blockhead"><h3>Sábado · Pecho + hombro + tríceps</h3><span class="tag">Con Angie</span><span class="rule"></span></div>
+    <div class="tablewrap"><table>
+      <thead><tr><th>Ejercicio</th><th>Grupo</th><th>Series</th></tr></thead>
+      <tbody><tr><td>Machine incline chest press</td><td class="grp">Pecho superior</td><td class="set">3 × 8–10</td></tr><tr><td>Machine chest flyes / Pecdec</td><td class="grp">Pecho</td><td class="set">3 × 8–10</td></tr><tr><td>Dumbbell flat chest press</td><td class="grp">Pecho</td><td class="set">3 × 8–10</td></tr><tr><td>Dumbbell shoulder press</td><td class="grp">Hombro frontal</td><td class="set">3 × 8</td></tr><tr><td>Cable lateral raises</td><td class="grp">Hombro lateral</td><td class="set">3 × 10 c/brazo</td></tr><tr><td>Elevaciones frontales</td><td class="grp">Hombro frontal</td><td class="set">3 × 10</td></tr><tr><td>Cable overhead tricep extension</td><td class="grp">Tríceps</td><td class="set">3 × 8</td></tr><tr><td>Katana tricep extension</td><td class="grp">Tríceps</td><td class="set">2 × 8</td></tr></tbody>
+    </table></div>
+  </div>
+
+  <div class="sec">
+    <div class="blockhead"><h3>Domingo · Piernas 2</h3><span class="tag">Con Angie · énfasis femoral y glúteo · + 20 min escaladora</span><span class="rule"></span></div>
+    <div class="tablewrap"><table>
+      <thead><tr><th>Ejercicio</th><th>Grupo</th><th>Series</th></tr></thead>
+      <tbody><tr><td>Peso muerto barra libre</td><td class="grp">Femoral / Glúteo</td><td class="set">3 al fallo</td></tr><tr><td>Femoral acostado</td><td class="grp">Femoral</td><td class="set">3 al fallo</td></tr><tr><td>Leg press</td><td class="grp">Cuádriceps / Glúteo</td><td class="set">3 al fallo</td></tr><tr><td>Hip thrust</td><td class="grp">Glúteo</td><td class="set">3 al fallo · última drop set</td></tr><tr><td>Abductores abiertos y cerrados</td><td class="grp">Abductores / Glúteo medio</td><td class="set">3 sets alternando al fallo</td></tr><tr><td>Escaladora</td><td class="grp">Cardio</td><td class="set">20 min</td></tr></tbody>
+    </table></div>
+  </div>
+
+  <div class="sec">
+    <div class="sechead"><h2>Cardio</h2><span class="note">Qué máquina y a qué ritmo</span></div>
+    <div class="grid g2">
+      <div class="card">
+        <div class="cardtop"><span class="label">Después de pesas · mar, mié y dom</span></div>
+        <div class="big" style="font-size:22px">Escaladora</div>
+        <p class="hint">
+          <strong style="color:var(--text)">20 min</strong> tras piernas · <strong style="color:var(--text)">15 min</strong> tras el martes<br>
+          <strong style="color:var(--text)">60–70 escalones/min</strong> (nivel 5–7)<br><br>
+          Zona donde puedes hablar con algo de dificultad. No al fallo — esto es recuperación activa,
+          no otro entreno encima del que acabas de hacer.
+        </p>
+      </div>
+      <div class="card">
+        <div class="cardtop"><span class="label">Viernes · con Angie</span></div>
+        <div class="big" style="font-size:22px">Día de cardio</div>
+        <p class="hint">
+          <strong style="color:var(--text)">20–30 min</strong> de escaladora, o caminadora inclinada
+          al <strong style="color:var(--text)">10–12%</strong> a <strong style="color:var(--text)">5–6 km/h</strong><br><br>
+          Sin pesas. Es el día que libera el martes de full upper para cubrir todo el tren superior.
+        </p>
+      </div>
+    </div>
+    <div class="callout" style="margin-top:14px">
+      <strong>Sobre el trabajo al fallo en piernas:</strong> los dos días van con todas las series al fallo,
+      como los definiste. Es mucha carga acumulada. Si el rendimiento baja semana a semana, te cuesta arrancar,
+      o las agujetas no se van — baja el fallo a solo la última serie de cada ejercicio por una semana.
+      No es retroceder: es dejar que el músculo se repare para poder crecer.
+    </div>
+  </div>
+
+</section>
+
+<!-- ============ 03 COCINA ============ -->
+<section class="panelview" id="view-cocina" role="tabpanel">
+
+  <div class="sec">
+    <div class="sechead"><h2>Tus números</h2><span class="note">Calculados desde tu TMB real</span></div>
+    <div class="grid g3">
+      <div class="card"><div class="label">Mantenimiento</div><div class="big">2910<small>kcal</small></div>
+        <p class="hint">TMB 1711 × 1.7 de actividad</p></div>
+      <div class="card"><div class="label">Meta diaria</div><div class="big" style="color:var(--fat)">3150<small>kcal</small></div>
+        <p class="hint">Superávit leve de +250 kcal</p></div>
+      <div class="card"><div class="label">Proteína mínima</div><div class="big" style="color:var(--lean)">155<small>g</small></div>
+        <p class="hint">~2.1 g por kg de peso</p></div>
+    </div>
+    <div class="callout" style="margin-top:14px">
+      Superávit <strong>leve</strong>, no un bulk agresivo. Tu grasa visceral y tu porcentaje corporal ya
+      están en rango ideal, y el 91% de tu grasa se acumula en el tronco. Un superávit fuerte mandaría ese
+      exceso justo ahí.
+    </div>
+  </div>
+
+  <div class="sec">
+    <div class="sechead"><h2>Arma tu día</h2><span class="note">Toca cambiar para rotar opciones</span></div>
+    <div id="meals"></div>
+
+    <div class="blockhead"><h3>Extras</h3><span class="tag">Para cerrar la meta</span><span class="rule"></span></div>
+    <div class="extras" id="extras"></div>
+
+    <div class="totals">
+      <div class="totalsgrid">
+        <div class="tm">
+          <div class="tlab"><span>Calorías</span><span class="tval" id="t-kcal">0 / 3150</span></div>
+          <div class="bar"><i class="kcal" id="b-kcal" style="width:0%"></i></div>
+        </div>
+        <div class="tm">
+          <div class="tlab"><span>Proteína</span><span class="tval" id="t-p">0 / 155 g</span></div>
+          <div class="bar"><i class="p" id="b-p" style="width:0%"></i></div>
+        </div>
+        <div class="tm">
+          <div class="tlab"><span>Grasas</span><span class="tval" id="t-f">0 / 90 g</span></div>
+          <div class="bar"><i class="f" id="b-f" style="width:0%"></i></div>
+        </div>
+        <div class="tm">
+          <div class="tlab"><span>Carbos</span><span class="tval" id="t-c">0 / 425 g</span></div>
+          <div class="bar"><i class="c" id="b-c" style="width:0%"></i></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sec">
+    <div class="sechead"><h2>Vegetales sin sufrir</h2><span class="note">De la guía de tu nutricionista</span></div>
+    <div class="rules">
+      <div class="rule-item"><b>Porciona al comprar</b>Lava y separa en bolsitas lo de toda la semana el mismo día.</div>
+      <div class="rule-item"><b>Cocina por lote</b>Un solo día a la semana dejas los vegetales listos.</div>
+      <div class="rule-item"><b>Salteado rápido</b>Tomate, brócoli, hongos, repollo y cebolla con 1 cda de aceite de oliva. Acompaña cualquier proteína.</div>
+      <div class="rule-item"><b>Aderezos libres</b>Vinagre de manzana, limón con sal y pimienta, o balsámico. No suman calorías.</div>
+    </div>
+  </div>
+
+</section>
+
+<footer>
+  Datos de bioimpedancia del 10.08.2026 · Perfect Split · Plan alimentario calibrado sobre la guía de tu asesoría nutricional<br>
+  Los macros de cada opción son estimados de referencia, no medidas de laboratorio. Reevalúa cada 3–4 semanas.
+</footer>
+
+</main>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ---------- TABS ---------- */
+  var tabs = document.querySelectorAll('.tab');
+  tabs.forEach(function(tab){
+    tab.addEventListener('click', function(){
+      tabs.forEach(function(t){ t.setAttribute('aria-selected','false'); });
+      tab.setAttribute('aria-selected','true');
+      document.querySelectorAll('.panelview').forEach(function(v){ v.classList.remove('on'); });
+      document.getElementById('view-' + tab.dataset.view).classList.add('on');
+      window.scrollTo({top:0, behavior:'smooth'});
+    });
+  });
+
+  /* ---------- SEGMENT MAP ---------- */
+  var SEG = {
+    lean: { armR:3.53, armL:3.54, trunk:28.55, legR:10.48, legL:10.23, max:28.55, color:'#4FD6C5', base:'#1A2C3C' },
+    fat:  { armR:0.30, armL:0.28, trunk:8.09,  legR:0.10,  legL:0.14,  max:8.09,  color:'#FF8A5C', base:'#1A2C3C' }
+  };
+  var READ = {
+    lean:'Tu masa magra está bien repartida y casi perfectamente simétrica entre lado derecho e izquierdo — diferencia de apenas <strong>0.25 kg</strong> en piernas y <strong>0.01 kg</strong> en brazos. No tienes desbalances que corregir.',
+    fat:'Aquí está la explicación de la barriga: <strong>8.09 kg de tus 8.9 kg de grasa total están en el tronco</strong>. Brazos y piernas casi no tienen. Tu cuerpo acumula todo en el centro — normal en hombres, pero es la zona a vigilar cuando subas calorías.'
+  };
+  var PARTS = ['armR','armL','trunk','legR','legL'];
+  var SVGID = { armR:'s-armR', armL:'s-armL', trunk:'s-torso', legR:'s-legR', legL:'s-legL' };
+
+  function mix(hex, t){
+    // blend base -> color by t (0..1)
+    var b = [26,44,60];
+    var c = [parseInt(hex.slice(1,3),16), parseInt(hex.slice(3,5),16), parseInt(hex.slice(5,7),16)];
+    var r = b.map(function(v,i){ return Math.round(v + (c[i]-v)*t); });
+    return 'rgb(' + r.join(',') + ')';
+  }
+
+  function renderSeg(mode){
+    var d = SEG[mode];
+    PARTS.forEach(function(p){
+      var val = d[p];
+      document.getElementById('v-' + (p==='trunk'?'trunk':p)).innerHTML =
+        val.toFixed(2) + '<span style="font-size:' + (p==='trunk'?'14':'13') + 'px">kg</span>';
+      var el = document.getElementById(SVGID[p]);
+      var t = 0.22 + 0.78 * Math.pow(val / d.max, 0.55);
+      el.setAttribute('fill', mix(d.color, t));
+      document.getElementById('v-'+p).style.color = d.color;
+    });
+    document.getElementById('s-head').setAttribute('fill', '#1E2E3E');
+    document.getElementById('segRead').innerHTML = READ[mode];
+  }
+
+  document.querySelectorAll('.segtoggle button').forEach(function(b){
+    b.addEventListener('click', function(){
+      document.querySelectorAll('.segtoggle button').forEach(function(x){ x.setAttribute('aria-pressed','false'); });
+      b.setAttribute('aria-pressed','true');
+      renderSeg(b.dataset.mode);
+    });
+  });
+  renderSeg('lean');
+
+  /* ---------- MENU BUILDER ---------- */
+  var TARGET = { kcal:3150, p:155, f:90, c:425 };
+
+  var MEALS = [
+    { name:'Desayuno', opts:[
+      { items:['3 huevos revueltos con espinaca y tomate','2 tostadas de pan integral','1 banano pequeño'], m:[460,27,17,47] },
+      { items:['2–3 huevos revueltos con tomate, espinaca y hongos','1 tortilla de maíz amarillo asada'], m:[390,24,21,25] },
+      { items:['Omelet de 2 huevos con jamón de pavo y vegetales','2 tostadas de pan integral'], m:[440,28,19,35] },
+      { items:['½ taza de avena con leche de almendras, chía y 4 almendras','3 huevos cocidos','Blueberries'], m:[530,31,23,48] },
+      { items:['1 arepa rellena de huevo revuelto con hongos','Rebanadas de tomate y aguacate'], m:[470,20,24,42] }
+    ]},
+    { name:'Merienda de la mañana', opts:[
+      { items:['1 yogur griego','10 almendras'], m:[250,20,12,14] },
+      { items:['Batido de fruta con 250 ml de leche de proteína','1 cdita de chía'], m:[320,25,8,38] },
+      { items:['2 galletas de arroz con mantequilla de maní','Jalea sin azúcar'], m:[280,8,14,32] },
+      { items:['1 manzana verde con mantequilla de maní pura'], m:[290,7,16,30] },
+      { items:['1 tortilla de trigo con jamón de pavo y aguacate'], m:[330,16,17,28] }
+    ]},
+    { name:'Almuerzo', opts:[
+      { items:['1½ taza de arroz','250 g de pechuga de pollo a la plancha','Ensalada verde con ½ aguacate','½ taza de frijoles'], m:[845,73,20,94] },
+      { items:['1 taza de arroz o quinoa','¼ de plátano maduro hervido','Filete de salmón a la plancha','Pico de gallo con aguacate y lechuga','½ chayote hervido'], m:[880,60,32,85] },
+      { items:['2 tortillas de trigo','200 g de fajitas de res con cebolla y chile dulce','Ensalada de repollo con tomate, culantro y limón','Coliflor hervida'], m:[780,58,28,70] },
+      { items:['1 taza de puré de papa','200 g de filete de pescado a la plancha','Ensalada verde con limón','½ taza de brócoli al vapor'], m:[700,55,18,72] },
+      { items:['2 trozos de yuca hervida','¼ de plátano maduro','200 g de pollo en salsa de tomate natural','Ensalada de espinacas con pepino y fresas'], m:[850,58,16,110] }
+    ]},
+    { name:'Post-entreno', opts:[
+      { items:['Batido: 1 scoop de proteína + 1 banano + leche descremada'], m:[300,33,2,38] },
+      { items:['1 taza de yogur griego con fruta picada y chía'], m:[260,24,6,28] },
+      { items:['2 huevos duros con aguacate majado y mostaza','1 galleta de arroz'], m:[290,16,18,16] },
+      { items:['1 leche de proteína','1 galleta de arroz con queso cottage y arándanos'], m:[280,28,6,28] }
+    ]},
+    { name:'Cena', opts:[
+      { items:['200 g de carne molida magra con salsa de tomate natural','3 tortillas de maíz','2 tazas de ensalada verde con aceite de oliva y limón'], m:[680,51,33,48] },
+      { items:['Quesadillas de pollo mechado en tortilla integral','Ensalada encima','2 huevos cocidos'], m:[720,48,34,52] },
+      { items:['1 lata de atún con huevo cocido, tomate, apio, aguacate y poca mayonesa light','2 paquetes de salmas'], m:[620,45,32,30] },
+      { items:['2 tazas de pasta con atún en agua, maíz dulce y salsa de tomate','2 huevos hervidos','1 taza de ensalada'], m:[830,55,22,95] },
+      { items:['Ensalada grande con 200 g de pollo, aguacate, cottage, garbanzos, maíz y zanahoria','Aderezo de yogur griego con limón, ajo y culantro'], m:[700,58,30,45] }
+    ]}
+  ];
+
+  var EXTRAS = [
+    { n:'1 taza extra de arroz', m:[200,4,0,44] },
+    { n:'½ aguacate', m:[160,2,15,8] },
+    { n:'Puñado de nueces mixtas', m:[190,5,17,6] },
+    { n:'2 tostadas con mantequilla de maní', m:[290,10,15,30] },
+    { n:'1 batido de proteína con leche', m:[240,30,4,20] },
+    { n:'1 taza de avena cocida', m:[160,6,3,28] },
+    { n:'2 huevos cocidos', m:[145,13,10,1] },
+    { n:'1 banano + 1 manzana', m:[190,2,1,48] }
+  ];
+
+  var pick = MEALS.map(function(){ return 0; });
+  var picked = {};
+
+  function macroRow(m){
+    return '<div class="mealmacros">' +
+      '<span><b>' + m[0] + '</b> kcal</span>' +
+      '<span>P <b>' + m[1] + '</b> g</span>' +
+      '<span>G <b>' + m[2] + '</b> g</span>' +
+      '<span>C <b>' + m[3] + '</b> g</span>' +
+    '</div>';
+  }
+
+  function renderMeals(){
+    var html = '';
+    MEALS.forEach(function(meal, i){
+      var o = meal.opts[pick[i]];
+      html += '<div class="mealcard">' +
+        '<div class="mealtop">' +
+          '<span class="name">' + meal.name + '</span>' +
+          '<span style="display:flex;align-items:center;gap:10px">' +
+            '<span class="optcount">' + (pick[i]+1) + ' / ' + meal.opts.length + '</span>' +
+            '<button class="swap" data-meal="' + i + '">Cambiar</button>' +
+          '</span>' +
+        '</div>' +
+        '<ul class="mealitems">' +
+          o.items.map(function(it){ return '<li>' + it + '</li>'; }).join('') +
+        '</ul>' +
+        macroRow(o.m) +
+      '</div>';
+    });
+    document.getElementById('meals').innerHTML = html;
+
+    document.querySelectorAll('.swap').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var i = parseInt(btn.dataset.meal, 10);
+        pick[i] = (pick[i] + 1) % MEALS[i].opts.length;
+        renderMeals();
+        recalc();
+      });
+    });
+  }
+
+  function renderExtras(){
+    document.getElementById('extras').innerHTML = EXTRAS.map(function(e, i){
+      return '<button class="chip" data-ex="' + i + '" aria-pressed="' + (picked[i] ? 'true':'false') + '">' +
+        e.n + '<span class="kc">+' + e.m[0] + '</span></button>';
+    }).join('');
+
+    document.querySelectorAll('.chip').forEach(function(c){
+      c.addEventListener('click', function(){
+        var i = parseInt(c.dataset.ex, 10);
+        picked[i] = !picked[i];
+        c.setAttribute('aria-pressed', picked[i] ? 'true' : 'false');
+        recalc();
+      });
+    });
+  }
+
+  function recalc(){
+    var t = [0,0,0,0];
+    MEALS.forEach(function(meal, i){
+      var m = meal.opts[pick[i]].m;
+      for (var k=0;k<4;k++) t[k] += m[k];
+    });
+    EXTRAS.forEach(function(e, i){
+      if (picked[i]) { for (var k=0;k<4;k++) t[k] += e.m[k]; }
+    });
+
+    var ids = ['kcal','p','f','c'];
+    var tg  = [TARGET.kcal, TARGET.p, TARGET.f, TARGET.c];
+    var unit= ['', ' g', ' g', ' g'];
+
+    ids.forEach(function(id, k){
+      document.getElementById('t-' + id).textContent =
+        Math.round(t[k]) + ' / ' + tg[k] + unit[k];
+      var pct = Math.min(100, (t[k] / tg[k]) * 100);
+      document.getElementById('b-' + id).style.width = pct.toFixed(1) + '%';
+    });
+  }
+
+  renderMeals();
+  renderExtras();
+  recalc();
+})();
+</script>
+</body>
+</html>
