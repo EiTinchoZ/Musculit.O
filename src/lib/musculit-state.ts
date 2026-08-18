@@ -1,7 +1,6 @@
 import {
   DayId,
   TrainingDay,
-  coreFinisherExercises,
   dayOrder,
   getDayById,
   weekdayToDayId,
@@ -43,12 +42,50 @@ export type DayOverrides = Record<string, DayId>;
 // "YYYY-MM" para mensual) -> ids de habitos completados en ese periodo
 export type HabitCompletions = Record<string, string[]>;
 
+export type BodySegments = {
+  armR: number;
+  armL: number;
+  trunk: number;
+  legR: number;
+  legL: number;
+};
+
+export type InBodyReading = {
+  id: string;
+  date: string;
+  weightKg: number;
+  imc: number;
+  bodyFatPercent: number;
+  fatMassKg: number;
+  leanMassKg: number;
+  skeletalMuscleKg: number;
+  bodyWaterL: number;
+  visceralFat: number;
+  bmr: number;
+  appendicularIndex: number;
+  idealWeightKg: number;
+  weightControlKg: number;
+  fatControlKg: number;
+  leanControlKg: number;
+  segmental: {
+    lean: BodySegments;
+    fat: BodySegments;
+  };
+};
+
+export type NutritionSelection = {
+  mealChoices: Record<string, number>;
+  extrasSelected: string[];
+};
+
 export type AppState = {
   user: UserProfile;
   preferences: Preferences;
   sessions: Record<string, SessionRecord>;
   dayOverrides: DayOverrides;
   habitCompletions: HabitCompletions;
+  inBodyReadings: InBodyReading[];
+  nutritionLogs: Record<string, NutritionSelection>;
 };
 
 export type DerivedStats = {
@@ -88,11 +125,22 @@ export const initialState: AppState = {
   sessions: {},
   dayOverrides: {},
   habitCompletions: {},
+  inBodyReadings: [],
+  nutritionLogs: {},
 };
 
-// dayId "canonico" usado cuando un dia se marca como descanso por un override semanal,
-// sin importar de que dia de la semana vino originalmente.
-const OVERRIDE_REST_DAY_ID: DayId = "monday";
+export function getLatestInBodyReading(state: AppState): InBodyReading | null {
+  if (!state.inBodyReadings.length) return null;
+  return [...state.inBodyReadings].sort((a, b) => b.date.localeCompare(a.date))[0];
+}
+
+export function getNutritionLogForDate(state: AppState, isoDate: string): NutritionSelection {
+  return state.nutritionLogs[isoDate] ?? { mealChoices: {}, extrasSelected: [] };
+}
+
+// dayId "canonico" usado cuando un dia se marca como descanso puntual por un
+// override semanal, sin importar de que dia de la semana vino originalmente.
+export const OVERRIDE_REST_DAY_ID: DayId = "monday";
 
 export function createEmptySession(
   date: string,
@@ -136,35 +184,12 @@ function getBaseTrainingDay(date: Date, overrides: DayOverrides): TrainingDay {
   return getDayById(getDayIdFromDate(date, overrides));
 }
 
-/**
- * El finisher de core va en hasta 2 dias de entreno por semana, siempre entre
- * Lunes y Jueves (nunca en Viernes/Sabado/Domingo, que son los dias con Cata).
- * Los 2 dias se eligen de forma dinamica: los primeros 2 dias de entreno reales
- * de esa semana dentro de la ventana Lunes-Jueves, en orden cronologico. Esto
- * hace que el finisher se mueva solo cuando la semana es irregular (dayOverrides).
- */
-function isAbsFinisherDay(date: Date, overrides: DayOverrides): boolean {
-  const isoWeekday = (date.getDay() + 6) % 7; // 0=Lunes ... 6=Domingo
-  if (isoWeekday > 3) return false; // excluye Vie/Sab/Dom (dias con Cata)
-
-  const monThu = getWeekDates(date).slice(0, 4); // Lun, Mar, Mie, Jue
-  const trainingIsoDates = monThu
-    .filter((day) => getBaseTrainingDay(day, overrides).type === "training")
-    .map((day) => toIsoDate(day))
-    .slice(0, 2);
-
-  return trainingIsoDates.includes(toIsoDate(date));
-}
-
+// El Perfect Split ya no tiene un finisher de core dinamico: el abdomen vive
+// fijo dentro de la rutina del Jueves (Crunch en maquina + Leg raises), como
+// cualquier otro ejercicio. getTrainingDayFromDate sigue siendo el punto de
+// entrada unico para resolver los ejercicios de una fecha (respeta overrides).
 export function getTrainingDayFromDate(date: Date, overrides: DayOverrides = {}): TrainingDay {
-  const base = getBaseTrainingDay(date, overrides);
-  if (base.type !== "training" || !isAbsFinisherDay(date, overrides)) {
-    return base;
-  }
-  return {
-    ...base,
-    exercises: [...base.exercises, ...coreFinisherExercises("finisher")],
-  };
+  return getBaseTrainingDay(date, overrides);
 }
 
 export function getSessionForDate(state: AppState, isoDate: string) {
@@ -437,42 +462,21 @@ export function getNextTrainingDays(fromDate: Date, count = 3, overrides: DayOve
 }
 
 /**
- * Calcula el reacomodo de una semana irregular: dado un set de fechas ISO marcadas
- * como descanso dentro de la semana de `weekStart`, redistribuye la secuencia normal
- * de tipos de entreno (el orden Pull -> Piernas -> Cardio -> Push -> Piernas que ya
- * define weeklySplit) sobre los dias que si quedan disponibles, en orden cronologico.
- * Si sobran dias disponibles, la secuencia se repite (cicla) para llenarlos.
- * Si faltan, se recorta desde el final.
- *
- * skipDayTypes permite excluir del ciclo un tipo de entreno puntual (ej. el usuario
- * decide saltar el Push de esta semana en vez de reacomodarlo a otro dia).
+ * Marca un set de fechas ISO, dentro de la semana de `weekStart`, como descanso
+ * puntual. A diferencia del sistema anterior, no reacomoda el resto de la semana:
+ * el Perfect Split tiene un tipo de sesion distinto y con un orden pensado a
+ * proposito para cada dia (ej. el miercoles de piernas separa a proposito los
+ * dos dias de espalda por 48h), asi que ciclar automaticamente otras rutinas
+ * sobre los dias libres rompería esa logica. Solo se salta la sesion de ese dia.
  */
-export function computeWeekReflow(
-  weekStart: Date,
-  restIsoDates: Set<string>,
-  skipDayTypes: Set<DayId> = new Set(),
-): DayOverrides {
-  const weekDates = getWeekDates(weekStart);
-  const availableDates = weekDates.filter((date) => !restIsoDates.has(toIsoDate(date)));
-  const sequence = weeklySplit
-    .filter((day) => day.type === "training" && !skipDayTypes.has(day.id))
-    .map((day) => day.id);
-
+export function markRestDays(weekStart: Date, restIsoDates: Set<string>): DayOverrides {
   const overrides: DayOverrides = {};
-
-  for (const date of weekDates) {
+  for (const date of getWeekDates(weekStart)) {
     const iso = toIsoDate(date);
     if (restIsoDates.has(iso)) {
       overrides[iso] = OVERRIDE_REST_DAY_ID;
     }
   }
-
-  if (sequence.length > 0) {
-    availableDates.forEach((date, index) => {
-      overrides[toIsoDate(date)] = sequence[index % sequence.length];
-    });
-  }
-
   return overrides;
 }
 

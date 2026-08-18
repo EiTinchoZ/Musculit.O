@@ -36,6 +36,9 @@ This is not a generic fitness template. It is a purpose-built system for Martin 
 - Progressive save flow through API persistence
 - Database-ready architecture for Vercel + Postgres
 - Local fallback persistence when no database is configured yet
+- Body composition tracking (InBody readings over time) with a segmental lean/fat map
+- Nutrition day builder calibrated to real macro targets, persisted per day
+- AI coach (Groq) with real workout, body composition, and nutrition context
 
 ## Training Philosophy Embedded In The App
 
@@ -45,17 +48,20 @@ This is not a generic fitness template. It is a purpose-built system for Martin 
 - Rest with intention
 - Let progressive overload prove itself over weeks, not moods
 
-## Weekly Split
+## Weekly Split — Perfect Split
 
-| Day | Focus | Cardio | Notes |
+| Day | Focus | With Angie | Duration |
 | --- | --- | --- | --- |
-| Monday | Legs | 20 min stair climber | Heavy lower day |
-| Tuesday | Upper Body | 20 min stair climber | Longest day |
-| Wednesday | Rest | No | Full recovery |
-| Thursday | Legs | 20 min stair climber | Repeat lower structure |
-| Friday | Push | 20 min stair climber | Partner-compatible day |
-| Saturday | Pull | 20 min stair climber | Pull first, cardio after |
-| Sunday | Rest | No | Full recovery |
+| Monday | Rest | — | — |
+| Tuesday | Full upper | No | 75-85 min |
+| Wednesday | Legs 1 | No | 60-75 min |
+| Thursday | Back + biceps | No | 55-70 min |
+| Friday | Cardio | Yes | 20-30 min |
+| Saturday | Chest, shoulder, triceps | Yes | 55-70 min |
+| Sunday | Legs 2 | Yes | 60-75 min |
+
+Each muscle group trains twice a week; only Monday is a fixed rest day. Migrated 2026-08-18 from the previous
+Pull/Legs/Push split — see [AGENTS.md](./AGENTS.md) for the full migration history.
 
 The full source-of-truth routine is documented in [ROUTINE.md](./ROUTINE.md).
 
@@ -123,15 +129,32 @@ High-level:
 src/
   app/
     api/
+      app-state/
+      auth/unlock/
+      coach/
+    candado/
+    rutina/
     globals.css
     layout.tsx
+    manifest.ts
     page.tsx
   components/
     musculit-app.tsx
+    musculit/
+      body-tab.tsx
+      coach-tab.tsx
+      history-tab.tsx
+      kitchen-tab.tsx
+      profile-tab.tsx
+      today-tab.tsx
+      week-override-panel.tsx
   lib/
     app-state-store.ts
     database-env.ts
+    habits-data.ts
+    inbody-data.ts
     musculit-state.ts
+    nutrition-data.ts
     prisma.ts
     routine-data.ts
     set-utils.ts
@@ -141,6 +164,7 @@ prisma/
 
 docs/
   DEPLOYMENT.md
+  actualizacion-2026-08/
 
 AGENTS.md
 CLAUDE.md

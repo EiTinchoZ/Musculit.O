@@ -8,71 +8,123 @@ datasource db {
 }
 
 model UserProfile {
-  id          String           @id @default(cuid())
-  slug        String           @unique
-  name        String
-  age         Int
-  heightM     Float
-  weightLb    Float
-  goal        String
-  gym         String
-  experience  String
-  showDetails Boolean          @default(false)
-  soundEnabled Boolean         @default(false)
-  calendarView String          @default("month")
-  weightUnit  String           @default("lb")
-  dayOverrides String          @default("{}")
-  habitCompletions String      @default("{}")
-  createdAt   DateTime         @default(now())
-  updatedAt   DateTime         @updatedAt
-  sessions    WorkoutSession[]
+  id               String           @id @default(cuid())
+  slug             String           @unique
+  name             String
+  age              Int
+  heightM          Float
+  weightLb         Float
+  goal             String
+  gym              String
+  experience       String
+  showDetails      Boolean          @default(false)
+  soundEnabled     Boolean          @default(false)
+  calendarView     String           @default("month")
+  weightUnit       String           @default("lb")
+  dayOverrides     String           @default("{}")
+  habitCompletions String           @default("{}")
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  sessions         WorkoutSession[]
+  inBodyReadings   InBodyReading[]
+  nutritionLogs    NutritionLog[]
 }
 
 model WorkoutSession {
-  id                String            @id @default(cuid())
-  userId            String
-  sessionDate       DateTime
-  dayId             String
-  completedCardio   Boolean           @default(false)
-  journal           String            @default("")
-  weightUnit        String            @default("lb")
-  contentHash       String            @default("")
-  closedAt          DateTime?
-  createdAt         DateTime          @default(now())
-  updatedAt         DateTime          @updatedAt
-  user              UserProfile       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  exercises         SessionExercise[]
+  id              String            @id @default(cuid())
+  userId          String
+  sessionDate     DateTime
+  dayId           String
+  completedCardio Boolean           @default(false)
+  journal         String            @default("")
+  weightUnit      String            @default("lb")
+  contentHash     String            @default("")
+  closedAt        DateTime?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  user            UserProfile       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  exercises       SessionExercise[]
 
   @@unique([userId, sessionDate])
   @@index([sessionDate])
 }
 
 model SessionExercise {
-  id            String               @id @default(cuid())
-  workoutId     String
-  exerciseId    String
-  exerciseName  String
-  groupName     String
-  sortOrder     Int
-  completed     Boolean              @default(false)
-  createdAt     DateTime             @default(now())
-  updatedAt     DateTime             @updatedAt
-  workout       WorkoutSession       @relation(fields: [workoutId], references: [id], onDelete: Cascade)
-  sets          SessionExerciseSet[]
+  id           String               @id @default(cuid())
+  workoutId    String
+  exerciseId   String
+  exerciseName String
+  groupName    String
+  sortOrder    Int
+  completed    Boolean              @default(false)
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
+  workout      WorkoutSession       @relation(fields: [workoutId], references: [id], onDelete: Cascade)
+  sets         SessionExerciseSet[]
 
   @@unique([workoutId, exerciseId])
   @@index([exerciseName])
 }
 
 model SessionExerciseSet {
-  id                String           @id @default(cuid())
+  id                String          @id @default(cuid())
   sessionExerciseId String
   setIndex          Int
   targetLabel       String
-  weightUsed        String           @default("")
-  createdAt         DateTime         @default(now())
-  updatedAt         DateTime         @updatedAt
-  sessionExercise   SessionExercise  @relation(fields: [sessionExerciseId], references: [id], onDelete: Cascade)
+  weightUsed        String          @default("")
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  sessionExercise   SessionExercise @relation(fields: [sessionExerciseId], references: [id], onDelete: Cascade)
 
   @@unique([sessionExerciseId, setIndex])
+}
+
+model InBodyReading {
+  id                String      @id @default(cuid())
+  userId            String
+  date              DateTime
+  weightKg          Float
+  imc               Float
+  bodyFatPercent    Float
+  fatMassKg         Float
+  leanMassKg        Float
+  skeletalMuscleKg  Float
+  bodyWaterL        Float
+  visceralFat       Float
+  bmr               Float
+  appendicularIndex Float
+  idealWeightKg     Float
+  weightControlKg   Float
+  fatControlKg      Float
+  leanControlKg     Float
+  leanArmR          Float
+  leanArmL          Float
+  leanTrunk         Float
+  leanLegR          Float
+  leanLegL          Float
+  fatArmR           Float
+  fatArmL           Float
+  fatTrunk          Float
+  fatLegR           Float
+  fatLegL           Float
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  user              UserProfile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+  @@index([date])
+}
+
+model NutritionLog {
+  id             String      @id @default(cuid())
+  userId         String
+  date           DateTime
+  mealChoices    String      @default("{}")
+  extrasSelected String      @default("[]")
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+  user           UserProfile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+  @@index([date])
 }

@@ -21,13 +21,16 @@ import {
   toIsoDate,
 } from "@/lib/musculit-state";
 import { inferSetCount, normalizeSetWeights, convertWeight } from "@/lib/set-utils";
+import { SEEDED_INBODY_READING } from "@/lib/inbody-data";
 import { HabitCadence } from "@/lib/habits-data";
 import { TodayTab } from "@/components/musculit/today-tab";
 import { HistoryTab } from "@/components/musculit/history-tab";
+import { BodyTab } from "@/components/musculit/body-tab";
+import { KitchenTab } from "@/components/musculit/kitchen-tab";
 import { ProfileTab } from "@/components/musculit/profile-tab";
 import { CoachTab } from "@/components/musculit/coach-tab";
 
-type TabId = "today" | "history" | "profile" | "coach";
+type TabId = "today" | "history" | "body" | "kitchen" | "profile" | "coach";
 
 type Celebration = {
   title: string;
@@ -37,6 +40,8 @@ type Celebration = {
 const tabs: { id: TabId; label: string }[] = [
   { id: "today", label: "Hoy" },
   { id: "history", label: "Historial" },
+  { id: "body", label: "Cuerpo" },
+  { id: "kitchen", label: "Cocina" },
   { id: "profile", label: "Perfil" },
   { id: "coach", label: "Coach" },
 ];
@@ -253,7 +258,9 @@ export function MusculitApp() {
   }
 
   function resetAllData() {
-    setState(initialState);
+    // Las mediciones de InBody son historial biometrico, no datos de entreno —
+    // "Reiniciar datos" borra sesiones/habitos/nutricion pero las preserva.
+    setState((current) => ({ ...initialState, inBodyReadings: current.inBodyReadings }));
     setCelebration({ title: "Datos reiniciados", body: "La app volvio al estado base." });
   }
 
@@ -323,6 +330,10 @@ export function MusculitApp() {
 
         {activeTab === "history" ? <HistoryTab state={state} today={today} todayIso={todayIso} /> : null}
 
+        {activeTab === "body" ? <BodyTab state={state} setState={setState} /> : null}
+
+        {activeTab === "kitchen" ? <KitchenTab state={state} setState={setState} todayIso={todayIso} /> : null}
+
         {activeTab === "profile" ? (
           <ProfileTab
             state={state}
@@ -340,14 +351,14 @@ export function MusculitApp() {
 
       {/* Nav */}
       <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-[var(--line-soft)] bg-[rgba(11,10,10,0.9)] backdrop-blur-xl">
-        <div className="mx-auto grid max-w-2xl grid-cols-4 gap-2 px-4 pb-[calc(0.75rem+var(--safe-bottom))] pt-3">
+        <div className="mx-auto grid max-w-2xl grid-cols-6 gap-1 px-2 pb-[calc(0.75rem+var(--safe-bottom))] pt-3">
           {tabs.map((tab) => (
             <button
               key={tab.id}
               type="button"
               aria-current={activeTab === tab.id ? "page" : undefined}
               onClick={() => setActiveTab(tab.id)}
-              className={`min-h-11 rounded-2xl px-1 py-3 text-center text-[11px] uppercase tracking-[0.1em] transition ${
+              className={`min-h-11 rounded-2xl px-0.5 py-3 text-center text-[9.5px] uppercase leading-tight tracking-[0.03em] transition sm:text-[11px] sm:tracking-[0.1em] ${
                 activeTab === tab.id ? "bg-[var(--ember)] text-white" : "text-[var(--ink-soft)]"
               }`}
             >
@@ -401,7 +412,7 @@ function loadInitialState() {
 
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return initialState;
+    if (!raw) return { ...initialState, inBodyReadings: [SEEDED_INBODY_READING] };
     const parsed = JSON.parse(raw) as Partial<AppState>;
     return normalizeLoadedState({
       user: { ...initialState.user, ...(parsed.user ?? {}) },
@@ -409,9 +420,11 @@ function loadInitialState() {
       sessions: parsed.sessions ?? {},
       dayOverrides: parsed.dayOverrides ?? {},
       habitCompletions: parsed.habitCompletions ?? {},
+      inBodyReadings: parsed.inBodyReadings?.length ? parsed.inBodyReadings : [SEEDED_INBODY_READING],
+      nutritionLogs: parsed.nutritionLogs ?? {},
     });
   } catch {
-    return initialState;
+    return { ...initialState, inBodyReadings: [SEEDED_INBODY_READING] };
   }
 }
 
@@ -457,5 +470,7 @@ function normalizeLoadedState(raw: AppState) {
     sessions: normalizedSessions,
     dayOverrides,
     habitCompletions: raw.habitCompletions ?? {},
+    inBodyReadings: raw.inBodyReadings?.length ? raw.inBodyReadings : [SEEDED_INBODY_READING],
+    nutritionLogs: raw.nutritionLogs ?? {},
   } satisfies AppState;
 }

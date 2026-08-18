@@ -20,7 +20,7 @@ export const habits: Habit[] = [
 ];
 
 export const nutritionTips: string[] = [
-  "Deficit moderado de 300-500 kcal diarias, no mas. Calcula tu BMR y sumale lo que quemas entrenando.",
+  "Superavit leve, no un bulk agresivo: unas 250 kcal sobre mantenimiento. El objetivo es ganar musculo sin que el excedente se acumule en el tronco.",
   "Proteina alta: 1.6-2.2 g por kg de peso corporal. Pollo, huevo, pescado, yogurt griego, carne magra.",
   "Fibra en cada comida (vegetales, frutas, champinones): da volumen, quita hambre, cuesta menos calorias.",
   "8,000-12,000 pasos diarios. Caminar despues de comer ayuda con la sensibilidad a la insulina y la hinchazon.",

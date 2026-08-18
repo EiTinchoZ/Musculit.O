@@ -54,10 +54,15 @@ body {
   -webkit-text-size-adjust: 100%;
 }
 
-button,
-input,
-textarea {
-  font: inherit;
+/* En @layer base para que las utilidades de Tailwind (@layer utilities) sigan
+   pudiendo pisar font-size/weight en botones puntuales — sin capa, esta regla
+   le ganaba a cualquier utilidad sin importar especificidad. */
+@layer base {
+  button,
+  input,
+  textarea {
+    font: inherit;
+  }
 }
 
 /* Previene zoom en inputs en iOS Safari */

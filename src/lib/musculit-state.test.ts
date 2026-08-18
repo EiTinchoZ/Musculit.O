@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
   AppState,
-  computeWeekReflow,
   createEmptySession,
   fromIsoDate,
   getCurrentStreak,
@@ -11,8 +10,9 @@ import {
   getTrainingDayFromDate,
   getXpForSession,
   initialState,
+  markRestDays,
 } from "./musculit-state";
-import { getDayById } from "./routine-data";
+import { getDayById, weeklySplit } from "./routine-data";
 
 function buildState(sessions: AppState["sessions"] = {}, dayOverrides: AppState["dayOverrides"] = {}): AppState {
   return { ...initialState, sessions, dayOverrides };
@@ -21,65 +21,87 @@ function buildState(sessions: AppState["sessions"] = {}, dayOverrides: AppState[
 // Semana de referencia: lunes 2026-07-13 a domingo 2026-07-19.
 const MONDAY = fromIsoDate("2026-07-13");
 
-describe("getTrainingDayFromDate - horario default", () => {
-  it("pone Pull el martes y Piernas el miercoles, sin finisher de core en sabado/domingo", () => {
-    const tuesday = getTrainingDayFromDate(fromIsoDate("2026-07-14"));
-    const wednesday = getTrainingDayFromDate(fromIsoDate("2026-07-15"));
-    const saturday = getTrainingDayFromDate(fromIsoDate("2026-07-18"));
-    const sunday = getTrainingDayFromDate(fromIsoDate("2026-07-19"));
-
-    expect(tuesday.focus).toBe("Pull");
-    expect(tuesday.exercises.some((e) => e.id.startsWith("cable-crunch"))).toBe(true);
-
-    expect(wednesday.focus).toBe("Piernas");
-    expect(wednesday.exercises.some((e) => e.id.startsWith("cable-crunch"))).toBe(true);
-
-    expect(saturday.exercises.some((e) => e.id.startsWith("cable-crunch"))).toBe(false);
-    expect(sunday.exercises.some((e) => e.id.startsWith("cable-crunch"))).toBe(false);
+describe("getTrainingDayFromDate - Perfect Split, horario default", () => {
+  it("resuelve el enfoque correcto de cada dia de la semana", () => {
+    expect(getTrainingDayFromDate(fromIsoDate("2026-07-13")).focus).toBe("Descanso"); // Lunes
+    expect(getTrainingDayFromDate(fromIsoDate("2026-07-14")).focus).toBe("Full upper"); // Martes
+    expect(getTrainingDayFromDate(fromIsoDate("2026-07-15")).focus).toBe("Piernas 1"); // Miercoles
+    expect(getTrainingDayFromDate(fromIsoDate("2026-07-16")).focus).toBe("Espalda y biceps"); // Jueves
+    expect(getTrainingDayFromDate(fromIsoDate("2026-07-17")).focus).toBe("Cardio"); // Viernes
+    expect(getTrainingDayFromDate(fromIsoDate("2026-07-18")).focus).toBe("Pecho, hombro y triceps"); // Sabado
+    expect(getTrainingDayFromDate(fromIsoDate("2026-07-19")).focus).toBe("Piernas 2"); // Domingo
   });
 
-  it("Lunes y Jueves son descanso por default", () => {
+  it("solo el lunes es descanso; jueves ahora es dia de entreno", () => {
     expect(getTrainingDayFromDate(fromIsoDate("2026-07-13")).type).toBe("rest");
-    expect(getTrainingDayFromDate(fromIsoDate("2026-07-16")).type).toBe("rest");
+    expect(getTrainingDayFromDate(fromIsoDate("2026-07-16")).type).toBe("training");
+  });
+
+  it("el finisher de abdomen vive fijo en el jueves, no en otros dias", () => {
+    const thursday = getTrainingDayFromDate(fromIsoDate("2026-07-16"));
+    expect(thursday.exercises.some((e) => e.id === "abs-crunch-machine")).toBe(true);
+    expect(thursday.exercises.some((e) => e.id === "leg-raises")).toBe(true);
+
+    const tuesday = getTrainingDayFromDate(fromIsoDate("2026-07-14"));
+    const saturday = getTrainingDayFromDate(fromIsoDate("2026-07-18"));
+    expect(tuesday.exercises.some((e) => e.id === "abs-crunch-machine")).toBe(false);
+    expect(saturday.exercises.some((e) => e.id === "abs-crunch-machine")).toBe(false);
+  });
+
+  it("el viernes es cardio puro, sin ejercicios de pesas", () => {
+    const friday = getTrainingDayFromDate(fromIsoDate("2026-07-17"));
+    expect(friday.cardioOnly).toBe(true);
+    expect(friday.exercises).toHaveLength(0);
   });
 });
 
-describe("computeWeekReflow - semana irregular", () => {
-  it("reacomoda la secuencia cuando el descanso cae Martes y Jueves en vez de Lunes y Jueves", () => {
-    const restIsoDates = new Set(["2026-07-14", "2026-07-16"]); // Martes y Jueves
-    const overrides = computeWeekReflow(MONDAY, restIsoDates);
+describe("routine-data - migracion Perfect Split", () => {
+  const bannedExerciseIds = [
+    "romanian-deadlift",
+    "bulgarian-split-squat",
+    "cable-crunch",
+    "abductor-machine",
+    "smith-squat",
+    "barbell-cable-rows",
+    "upright-single-arm-rows",
+    "dumbbell-shrugs",
+    "reverse-machine-flyes",
+    "deadlift-heels",
+  ];
 
-    expect(getDayById(overrides["2026-07-13"]).focus).toBe("Pull"); // Lunes -> Pull
-    expect(overrides["2026-07-14"]).toBe("monday"); // Martes -> descanso (canonico)
-    expect(getDayById(overrides["2026-07-15"]).focus).toBe("Piernas"); // Miercoles -> Piernas
-    expect(overrides["2026-07-16"]).toBe("monday"); // Jueves -> descanso
-    expect(getDayById(overrides["2026-07-17"]).focus).toBe("Cardio"); // Viernes intacto
-    expect(getDayById(overrides["2026-07-18"]).focus).toBe("Push"); // Sabado intacto
-    expect(getDayById(overrides["2026-07-19"]).focus).toBe("Piernas"); // Domingo intacto
+  it("no queda ninguna referencia a los ejercicios eliminados por el spec", () => {
+    const allIds = weeklySplit.flatMap((day) => day.exercises.map((e) => e.id));
+    for (const banned of bannedExerciseIds) {
+      expect(allIds.some((id) => id.startsWith(banned))).toBe(false);
+    }
   });
 
-  it("el finisher de core sigue a la secuencia reacomodada (se mueve a Lunes y Miercoles)", () => {
-    const restIsoDates = new Set(["2026-07-14", "2026-07-16"]);
-    const overrides = computeWeekReflow(MONDAY, restIsoDates);
-
-    const monday = getTrainingDayFromDate(fromIsoDate("2026-07-13"), overrides);
-    const wednesday = getTrainingDayFromDate(fromIsoDate("2026-07-15"), overrides);
-    const saturday = getTrainingDayFromDate(fromIsoDate("2026-07-18"), overrides);
-
-    expect(monday.exercises.some((e) => e.id.startsWith("cable-crunch"))).toBe(true);
-    expect(wednesday.exercises.some((e) => e.id.startsWith("cable-crunch"))).toBe(true);
-    expect(saturday.exercises.some((e) => e.id.startsWith("cable-crunch"))).toBe(false);
+  it("no queda ninguna mencion a Cata en la data de la rutina", () => {
+    const raw = JSON.stringify(weeklySplit);
+    expect(raw.includes("Cata")).toBe(false);
   });
 
-  it("respeta skipDayTypes: si se salta el Push de la semana, no aparece en la propuesta", () => {
-    const restIsoDates = new Set(["2026-07-18"]); // Sabado (dia de Push) como descanso
-    const overrides = computeWeekReflow(MONDAY, restIsoDates, new Set(["saturday"]));
+  it("smith squats solo aparece en Piernas 1 (miercoles), no en Piernas 2 (domingo)", () => {
+    const wednesday = getDayById("wednesday");
+    const sunday = getDayById("sunday");
+    expect(wednesday.exercises.some((e) => e.id === "squats-smith")).toBe(true);
+    expect(sunday.exercises.some((e) => e.id === "squats-smith")).toBe(false);
+  });
+});
 
-    const focuses = Object.entries(overrides)
-      .filter(([iso]) => iso !== "2026-07-18")
-      .map(([, dayId]) => getDayById(dayId).focus);
+describe("markRestDays", () => {
+  it("marca solo las fechas indicadas como descanso, sin tocar el resto de la semana", () => {
+    const overrides = markRestDays(MONDAY, new Set(["2026-07-14"]));
+    expect(overrides["2026-07-14"]).toBe("monday");
+    expect(overrides["2026-07-15"]).toBeUndefined();
+    expect(Object.keys(overrides)).toHaveLength(1);
+  });
 
-    expect(focuses).not.toContain("Push");
+  it("el override aplicado hace que getTrainingDayFromDate resuelva ese dia como descanso", () => {
+    const overrides = markRestDays(MONDAY, new Set(["2026-07-14"]));
+    expect(getTrainingDayFromDate(fromIsoDate("2026-07-14"), overrides).type).toBe("rest");
+    // El resto de la semana sigue igual.
+    expect(getTrainingDayFromDate(fromIsoDate("2026-07-15"), overrides).focus).toBe("Piernas 1");
   });
 });
 
@@ -117,9 +139,7 @@ describe("getLevelFromXp", () => {
 });
 
 describe("getCurrentStreak", () => {
-  it("cuenta dias de entreno consecutivos con >=50% e ignora los dias de descanso", () => {
-    // Martes y Miercoles son dias de finisher de core por default: hay que resolver
-    // con getTrainingDayFromDate (no getDayById) para contar los ejercicios reales.
+  it("cuenta dias de entreno consecutivos con >=50%", () => {
     const tuesday = getTrainingDayFromDate(fromIsoDate("2026-07-14"));
     const sessionTue = createEmptySession("2026-07-14", "tuesday");
     sessionTue.completedExerciseIds = tuesday.exercises.map((e) => e.id);
@@ -137,8 +157,24 @@ describe("getCurrentStreak", () => {
       "2026-07-15": sessionWed,
     });
 
-    // Jueves (2026-07-16) es descanso, no rompe la racha.
-    expect(getCurrentStreak(state, "2026-07-16")).toBe(2);
+    expect(getCurrentStreak(state, "2026-07-15")).toBe(2);
+  });
+
+  it("el lunes de descanso no rompe una racha de 6 dias de entreno seguidos", () => {
+    const isoDates = ["2026-07-14", "2026-07-15", "2026-07-16", "2026-07-17", "2026-07-18", "2026-07-19"];
+    const sessions: AppState["sessions"] = {};
+
+    for (const iso of isoDates) {
+      const day = getTrainingDayFromDate(fromIsoDate(iso));
+      const session = createEmptySession(iso, day.id);
+      session.completedExerciseIds = day.exercises.map((e) => e.id);
+      session.completedCardio = true;
+      sessions[iso] = session;
+    }
+
+    const state = buildState(sessions);
+    // 2026-07-20 es el lunes siguiente (descanso): no rompe la racha, solo la salta.
+    expect(getCurrentStreak(state, "2026-07-20")).toBe(6);
   });
 
   it("se corta si un dia de entreno no llego al 50%", () => {

@@ -190,12 +190,12 @@ function ProfileField({
   onChange: (value: string) => void;
 }) {
   return (
-    <label className="grid gap-1.5">
+    <label className="grid min-w-0 gap-1.5">
       <span className="text-xs uppercase tracking-[0.18em] text-[var(--ink-soft)]">{label}</span>
       <input
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="min-h-11 rounded-xl border border-[var(--line-soft)] bg-[var(--panel-strong)] px-4 py-3 text-sm text-[var(--ink-strong)] outline-none transition focus:border-[var(--ember)]"
+        className="min-h-11 min-w-0 rounded-xl border border-[var(--line-soft)] bg-[var(--panel-strong)] px-4 py-3 text-sm text-[var(--ink-strong)] outline-none transition focus:border-[var(--ember)]"
       />
     </label>
   );

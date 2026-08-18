@@ -2,16 +2,16 @@
 
 import { getTrainingDayFromDate, getWeekDates } from "@/lib/musculit-state";
 
-// Semana de referencia (sin overrides) solo para derivar el orden Lun-Dom y
-// que el finisher de abs se calcule igual que en la app: 2 dias entre Lun-Jue.
+// Semana de referencia (sin overrides), solo para derivar el orden Lun-Dom
+// tal como lo resuelve la app.
 const referenceWeek = getWeekDates(new Date()).map((date) => getTrainingDayFromDate(date));
 
 const generalRules = [
   { label: "Descanso entre sets", value: "2 minutos" },
   { label: "Intensidad", value: "Cerca del fallo, sin romper tecnica" },
-  { label: "Rango dominante", value: "8-10 reps" },
-  { label: "Cardio post-entreno", value: "20 min de escaladora a baja intensidad" },
-  { label: "Objetivo", value: "Recomposicion corporal: ganar algo de masa, verte mas marcado, sostener consistencia real" },
+  { label: "Rango dominante", value: "8-10 reps (piernas: todas las series al fallo)" },
+  { label: "Dia de descanso", value: "Solo lunes, fijo" },
+  { label: "Objetivo", value: "Recomposicion corporal: bajar grasa de tronco/abdomen, ganar masa magra, sostener consistencia real" },
 ];
 
 export default function RutinaPage() {

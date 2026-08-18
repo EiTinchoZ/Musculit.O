@@ -9,6 +9,8 @@ import {
   AppState,
   DayId,
   DayOverrides,
+  InBodyReading,
+  NutritionSelection,
   SessionRecord,
   createEmptySession,
   fromIsoDate,
@@ -17,6 +19,7 @@ import {
   initialState,
   toIsoDate,
 } from "@/lib/musculit-state";
+import { SEEDED_INBODY_READING } from "@/lib/inbody-data";
 import { inferSetCount, normalizeSetWeights } from "@/lib/set-utils";
 
 const DEV_STORE_PATH = path.join(process.cwd(), ".musculit-dev-store.json");
@@ -69,6 +72,8 @@ async function loadFromFile() {
       sessions: parsed.sessions ?? {},
       dayOverrides: parsed.dayOverrides ?? {},
       habitCompletions: parsed.habitCompletions ?? {},
+      inBodyReadings: parsed.inBodyReadings ?? [],
+      nutritionLogs: parsed.nutritionLogs ?? {},
     });
   } catch {
     return initialState;
@@ -113,6 +118,8 @@ async function loadFromDatabase() {
         },
         orderBy: { sessionDate: "asc" },
       },
+      inBodyReadings: { orderBy: { date: "asc" } },
+      nutritionLogs: { orderBy: { date: "asc" } },
     },
   });
 
@@ -139,6 +146,37 @@ async function loadFromDatabase() {
     };
   }
 
+  const inBodyReadings: InBodyReading[] = user.inBodyReadings.map((row) => ({
+    id: row.id,
+    date: toIsoDate(row.date),
+    weightKg: row.weightKg,
+    imc: row.imc,
+    bodyFatPercent: row.bodyFatPercent,
+    fatMassKg: row.fatMassKg,
+    leanMassKg: row.leanMassKg,
+    skeletalMuscleKg: row.skeletalMuscleKg,
+    bodyWaterL: row.bodyWaterL,
+    visceralFat: row.visceralFat,
+    bmr: row.bmr,
+    appendicularIndex: row.appendicularIndex,
+    idealWeightKg: row.idealWeightKg,
+    weightControlKg: row.weightControlKg,
+    fatControlKg: row.fatControlKg,
+    leanControlKg: row.leanControlKg,
+    segmental: {
+      lean: { armR: row.leanArmR, armL: row.leanArmL, trunk: row.leanTrunk, legR: row.leanLegR, legL: row.leanLegL },
+      fat: { armR: row.fatArmR, armL: row.fatArmL, trunk: row.fatTrunk, legR: row.fatLegR, legL: row.fatLegL },
+    },
+  }));
+
+  const nutritionLogs: Record<string, NutritionSelection> = {};
+  for (const row of user.nutritionLogs) {
+    nutritionLogs[toIsoDate(row.date)] = {
+      mealChoices: normalizeMealChoices(row.mealChoices),
+      extrasSelected: normalizeExtrasSelected(row.extrasSelected),
+    };
+  }
+
   return normalizeAppState({
     user: {
       name: user.name,
@@ -158,6 +196,8 @@ async function loadFromDatabase() {
     sessions,
     dayOverrides: normalizeDayOverrides(user.dayOverrides),
     habitCompletions: normalizeHabitCompletions(user.habitCompletions),
+    inBodyReadings,
+    nutritionLogs,
   });
 }
 
@@ -288,7 +328,86 @@ async function saveToDatabase(state: AppState) {
         }
       }
     }
+
+    // InBody: coleccion chica (unas pocas mediciones en total). Diff completo
+    // sin necesidad de hash de contenido, cada fila es plana y sin hijos.
+    const existingReadings = await tx.inBodyReading.findMany({
+      where: { userId: user.id },
+      select: { id: true, date: true },
+    });
+    const incomingReadingIsoDates = new Set(state.inBodyReadings.map((reading) => reading.date));
+    const staleReadingIds = existingReadings
+      .filter((row) => !incomingReadingIsoDates.has(toIsoDate(row.date)))
+      .map((row) => row.id);
+    if (staleReadingIds.length) {
+      await tx.inBodyReading.deleteMany({ where: { id: { in: staleReadingIds } } });
+    }
+    for (const reading of state.inBodyReadings) {
+      const row = inBodyReadingRow(reading);
+      await tx.inBodyReading.upsert({
+        where: { userId_date: { userId: user.id, date: fromIsoDate(reading.date) } },
+        update: row,
+        create: { userId: user.id, date: fromIsoDate(reading.date), ...row },
+      });
+    }
+
+    // Nutricion: filas planas, pero pueden crecer dia a dia como las sesiones
+    // — solo se reescribe la fecha cuyo contenido cambio de verdad.
+    const existingLogs = await tx.nutritionLog.findMany({
+      where: { userId: user.id },
+      select: { id: true, date: true, mealChoices: true, extrasSelected: true },
+    });
+    const existingLogsByIso = new Map(existingLogs.map((row) => [toIsoDate(row.date), row]));
+    const incomingLogIsoDates = new Set(Object.keys(state.nutritionLogs));
+    const staleLogIds = existingLogs
+      .filter((row) => !incomingLogIsoDates.has(toIsoDate(row.date)))
+      .map((row) => row.id);
+    if (staleLogIds.length) {
+      await tx.nutritionLog.deleteMany({ where: { id: { in: staleLogIds } } });
+    }
+    for (const [isoDate, selection] of Object.entries(state.nutritionLogs)) {
+      const mealChoices = JSON.stringify(selection.mealChoices);
+      const extrasSelected = JSON.stringify([...selection.extrasSelected].sort());
+      const existingRow = existingLogsByIso.get(isoDate);
+      if (existingRow && existingRow.mealChoices === mealChoices && existingRow.extrasSelected === extrasSelected) {
+        continue;
+      }
+      await tx.nutritionLog.upsert({
+        where: { userId_date: { userId: user.id, date: fromIsoDate(isoDate) } },
+        update: { mealChoices, extrasSelected },
+        create: { userId: user.id, date: fromIsoDate(isoDate), mealChoices, extrasSelected },
+      });
+    }
   });
+}
+
+function inBodyReadingRow(reading: InBodyReading) {
+  return {
+    weightKg: reading.weightKg,
+    imc: reading.imc,
+    bodyFatPercent: reading.bodyFatPercent,
+    fatMassKg: reading.fatMassKg,
+    leanMassKg: reading.leanMassKg,
+    skeletalMuscleKg: reading.skeletalMuscleKg,
+    bodyWaterL: reading.bodyWaterL,
+    visceralFat: reading.visceralFat,
+    bmr: reading.bmr,
+    appendicularIndex: reading.appendicularIndex,
+    idealWeightKg: reading.idealWeightKg,
+    weightControlKg: reading.weightControlKg,
+    fatControlKg: reading.fatControlKg,
+    leanControlKg: reading.leanControlKg,
+    leanArmR: reading.segmental.lean.armR,
+    leanArmL: reading.segmental.lean.armL,
+    leanTrunk: reading.segmental.lean.trunk,
+    leanLegR: reading.segmental.lean.legR,
+    leanLegL: reading.segmental.lean.legL,
+    fatArmR: reading.segmental.fat.armR,
+    fatArmL: reading.segmental.fat.armL,
+    fatTrunk: reading.segmental.fat.trunk,
+    fatLegR: reading.segmental.fat.legR,
+    fatLegL: reading.segmental.fat.legL,
+  };
 }
 
 function computeSessionContentHash(session: SessionRecord): string {
@@ -321,6 +440,8 @@ function normalizeAppState(state: AppState): AppState {
     );
   }
 
+  const inBodyReadings = state.inBodyReadings?.length ? state.inBodyReadings : [SEEDED_INBODY_READING];
+
   return {
     user: {
       ...initialState.user,
@@ -330,6 +451,8 @@ function normalizeAppState(state: AppState): AppState {
     sessions: normalizedSessions,
     dayOverrides: { ...initialState.dayOverrides, ...(state.dayOverrides ?? {}) },
     habitCompletions: { ...initialState.habitCompletions, ...(state.habitCompletions ?? {}) },
+    inBodyReadings,
+    nutritionLogs: { ...initialState.nutritionLogs, ...(state.nutritionLogs ?? {}) },
   };
 }
 
@@ -416,5 +539,32 @@ function normalizeHabitCompletions(value: unknown): AppState["habitCompletions"]
     return result;
   } catch {
     return {};
+  }
+}
+
+function normalizeMealChoices(value: unknown): NutritionSelection["mealChoices"] {
+  if (typeof value !== "string") return {};
+  try {
+    const parsed = JSON.parse(value) as Record<string, unknown>;
+    const result: NutritionSelection["mealChoices"] = {};
+    for (const [mealId, optionIndex] of Object.entries(parsed)) {
+      if (typeof optionIndex === "number") {
+        result[mealId] = optionIndex;
+      }
+    }
+    return result;
+  } catch {
+    return {};
+  }
+}
+
+function normalizeExtrasSelected(value: unknown): NutritionSelection["extrasSelected"] {
+  if (typeof value !== "string") return [];
+  try {
+    const parsed = JSON.parse(value) as unknown[];
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((id): id is string => typeof id === "string");
+  } catch {
+    return [];
   }
 }

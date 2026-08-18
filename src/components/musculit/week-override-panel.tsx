@@ -4,10 +4,9 @@ import { useState, type Dispatch, type SetStateAction } from "react";
 import { getDayById, weeklySplit } from "@/lib/routine-data";
 import {
   AppState,
-  DayId,
-  computeWeekReflow,
   getTrainingDayFromDate,
   getWeekDates,
+  markRestDays,
   toIsoDate,
 } from "@/lib/musculit-state";
 
@@ -26,14 +25,9 @@ export function WeekOverridePanel({
 
   const [isOpen, setIsOpen] = useState(false);
   const [draftRest, setDraftRest] = useState<Set<string> | null>(null);
-  const [draftSkip, setDraftSkip] = useState<Set<DayId>>(new Set());
 
   // Vie/Sab/Dom son siempre los indices 4,5,6 porque getWeekDates arranca en Lunes.
-  const cataDays = [
-    { date: weekDates[4], dayId: "friday" as DayId },
-    { date: weekDates[5], dayId: "saturday" as DayId },
-    { date: weekDates[6], dayId: "sunday" as DayId },
-  ].map((item) => ({ ...item, day: getDayById(item.dayId) }));
+  const angieDates = new Set([weekIsoDates[4], weekIsoDates[5], weekIsoDates[6]]);
 
   function openPanel() {
     setDraftRest(
@@ -43,7 +37,6 @@ export function WeekOverridePanel({
           .map((date) => toIsoDate(date)),
       ),
     );
-    setDraftSkip(new Set());
     setIsOpen(true);
   }
 
@@ -56,18 +49,9 @@ export function WeekOverridePanel({
     });
   }
 
-  function toggleSkip(dayId: DayId) {
-    setDraftSkip((current) => {
-      const next = new Set(current);
-      if (next.has(dayId)) next.delete(dayId);
-      else next.add(dayId);
-      return next;
-    });
-  }
-
   function applyOverride() {
     if (!draftRest) return;
-    const overrides = computeWeekReflow(weekDates[0], draftRest, draftSkip);
+    const overrides = markRestDays(weekDates[0], draftRest);
     setState((current) => ({
       ...current,
       dayOverrides: { ...current.dayOverrides, ...overrides },
@@ -83,8 +67,9 @@ export function WeekOverridePanel({
     });
   }
 
-  const preview = draftRest ? computeWeekReflow(weekDates[0], draftRest, draftSkip) : null;
-  const affectedCataDays = cataDays.filter((c) => draftRest?.has(toIsoDate(c.date)));
+  const affectedAngieDates = draftRest
+    ? [...draftRest].filter((iso) => angieDates.has(iso))
+    : [];
 
   return (
     <div className="rounded-2xl border border-[var(--line-soft)] bg-[var(--panel)] p-5">
@@ -101,8 +86,8 @@ export function WeekOverridePanel({
         <div className="mt-4 flex flex-col gap-3">
           <p className="text-sm leading-6 text-[var(--ink-soft)]">
             {hasActiveOverride
-              ? "Esta semana tiene un horario ajustado, distinto al default."
-              : "Si esta semana vas a descansar dias distintos a los normales, marcalos y la app reacomoda la rutina."}
+              ? "Esta semana tiene dias de descanso distintos al default (solo lunes)."
+              : "Si esta semana vas a descansar un dia distinto al lunes, marcalo aca. Ese dia se saltea, sin tocar el resto de la semana."}
           </p>
           <div className="flex gap-2">
             <button
@@ -152,43 +137,18 @@ export function WeekOverridePanel({
             </div>
           </div>
 
-          {affectedCataDays.length > 0 && (
-            <div className="grid gap-2 rounded-xl border border-[var(--ember-soft)] bg-[rgba(199,100,45,0.08)] p-3">
+          {affectedAngieDates.length > 0 && (
+            <div className="grid gap-1.5 rounded-xl border border-[var(--ember-soft)] bg-[rgba(199,100,45,0.08)] p-3">
               <p className="text-xs leading-5 text-[var(--ink-soft)]">
-                Marcaste como descanso un dia que normalmente vas con Cata. ¿Que hacemos con ese entreno?
+                Estas saltando una sesion que normalmente vas con Angie:
               </p>
-              {affectedCataDays.map((c) => (
-                <div key={c.dayId} className="flex items-center justify-between gap-2">
-                  <span className="text-xs">{c.day.label} · {c.day.focus}</span>
-                  <button
-                    type="button"
-                    aria-pressed={draftSkip.has(c.dayId)}
-                    onClick={() => toggleSkip(c.dayId)}
-                    className={`min-h-9 rounded-full border px-3 text-[11px] uppercase tracking-[0.1em] transition ${
-                      draftSkip.has(c.dayId)
-                        ? "border-[var(--danger)] text-[var(--danger)]"
-                        : "border-[var(--status-good)] text-[var(--status-good)]"
-                    }`}
-                  >
-                    {draftSkip.has(c.dayId) ? "Se salta esta semana" : "Se reacomoda otro dia"}
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {preview && (
-            <div className="grid gap-1.5 rounded-xl border border-[var(--line-soft)] bg-[var(--panel-strong)] p-3">
-              <p className="mb-1 text-[11px] uppercase tracking-[0.16em] text-[var(--ink-soft)]">Propuesta</p>
-              {weekDates.map((date, index) => {
-                const iso = toIsoDate(date);
-                const overrideDayId = preview[iso];
-                const day = overrideDayId ? getDayById(overrideDayId) : getDayById(weeklySplit[index].id);
+              {affectedAngieDates.map((iso) => {
+                const index = weekIsoDates.indexOf(iso);
+                const day = getDayById(weeklySplit[index].id);
                 return (
-                  <div key={iso} className="flex items-center justify-between text-sm">
-                    <span className="text-[var(--ink-soft)]">{weeklySplit[index].shortLabel}</span>
-                    <span>{day.focus}</span>
-                  </div>
+                  <span key={iso} className="text-xs">
+                    {day.label} · {day.focus}
+                  </span>
                 );
               })}
             </div>
