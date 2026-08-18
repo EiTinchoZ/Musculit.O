@@ -393,3 +393,39 @@ Verificado en cada bloque con `tsc --noEmit`, `vitest run` (21 tests), y Playwri
 **Pendiente / a criterio de Tín para después:**
 - RLS deshabilitado en las 6 tablas de Supabase (preexistente, no introducido acá) — bajo riesgo real porque la app usa `DATABASE_URL` directo desde el servidor, no una anon key expuesta al cliente. Documentado, no aplicado sin confirmación.
 - El formulario de "Agregar nueva medición" en el tab Cuerpo es manual (sin integración con el dispositivo InBody) — es la vía más simple para cargar mediciones futuras sin depender de una API externa que no existe.
+
+**Commit y deploy (2026-08-18):** commiteado en `d7f36ab` y pusheado a `main`. Vercel autodeployeó a producción (`musculit-o.vercel.app`), verificado con curl (`/candado` 200, `/` y `/rutina` redirigen al gate — passcode activo en prod).
+
+---
+
+## Toque plus — animaciones, gráficos y micro-interacciones (2026-08-18)
+
+Pedido de Tín después del deploy: agregar animaciones, gráficos, diseño y detalles que le den un nivel premium a lo ya construido. Mismo criterio de siempre: **cero dependencias nuevas**, todo con SVG/CSS nativo (mismo patrón que ya se usó para el mapa segmentario).
+
+### Qué se agregó
+
+- `globals.css`: soporte a `prefers-reduced-motion` (no existía, lo pedía la spec original), keyframes reutilizables (`tab-enter`, `card-enter` con stagger, `chart-line-draw`).
+- `musculit-app.tsx`: el contenido de cada tab entra con fade/slide al cambiar de tab (wrapper con `key={activeTab}` para forzar remount).
+- `src/lib/use-count-up.ts`: hook `useCountUp` — anima un número hacia su valor nuevo solo cuando *cambia* (no en el mount inicial), respeta reduced-motion. Cuidado con `react-hooks/set-state-in-effect`: el `setState` vive solo dentro del callback de `requestAnimationFrame`, nunca sincrónico en el cuerpo del efecto — la primera versión disparó ese lint error, se corrigió usando un sentinel `null` en vez de sincronizar el valor "en reposo" via efecto.
+- `src/components/musculit/count-up-value.tsx`: wrapper compartido de `useCountUp`, usado en Cuerpo, Cocina, Perfil y Hoy.
+- Cuerpo (`body-tab.tsx`): card nueva "Evolución" — línea de tendencia (peso / grasa corporal / masa magra) a través de las lecturas de InBody guardadas, con toggle de métrica y animación de trazo (`stroke-dasharray`/`chart-line-draw`, sin medir `getTotalLength()` — un valor grande fijo de dasharray alcanza para el efecto). Con 1 sola lectura muestra el valor grande y un mensaje en vez de un gráfico vacío.
+- Cocina (`kitchen-tab.tsx`): anillo SVG de progreso de calorías del día en "Tus números" (reemplazó la card estática de "Meta diaria"), barras de macros con transición de ancho.
+- Perfil (`profile-tab.tsx`): sparklines por ejercicio en "Progreso de cargas" (últimas 8 sesiones con peso registrado), color según tendencia (sube/baja/plano).
+- Hoy (`today-tab.tsx`): el anillo de progreso y el % ahora animan con `useCountUp`.
+
+### Estado — listo (2026-08-18)
+
+Verificado con `tsc`, `eslint`, `vitest` (21 tests) y Playwright contra el dev server real en Cuerpo/Cocina/Perfil (sin overflow, sin errores de consola). `npm run build` limpio. Commiteado en `a4af94e` y pusheado — deploy a Vercel disparado automáticamente.
+
+---
+
+## Próximo bloque — Chequeo mensual de fotos + peso (en curso)
+
+Pedido de Tín: días específicos cada mes para pesarse y tomarse fotos de progreso (frente, espalda, costado, bíceps flexionado), guardadas en la plataforma. Primera vez hoy (18/08/2026), después siempre a fin de cada mes siguiente.
+
+**Decisiones tomadas:**
+- **Frecuencia: mensual** (no cada 3 meses, que Tín dejó a mi criterio) — coincide con la regla ya existente de "reevaluar cada 3-4 semanas" en el plan nutricional, mismo ciclo de decisión.
+- **Storage de fotos: base64 en Postgres**, sin servicio nuevo (ni Supabase Storage ni Vercel Blob). Las fotos se redimensionan/comprimen en el navegador (canvas nativo) antes de subirse. Volumen real esperado (4 fotos x 1 vez al mes) es liviano para el free tier de Supabase. Si en el futuro esto pesa demasiado en la base, ahí sí se evalúa migrar a un bucket — no antes.
+- **Cálculo de próxima fecha:** sin hardcodear "fin de mes" — se calcula como fin del mes siguiente al del último chequeo (`checkinDate.month + 1`), así el primer chequeo (hoy, no fin de mes) también encaja en la regla sin caso especial.
+
+Pendiente de implementar: modelos `ProgressCheckin`/`ProgressPhoto` en Prisma, UI de captura (`<input type=file capture=environment>` + resize por canvas), timeline de chequeos pasados, indicador de próximo chequeo.
