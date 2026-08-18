@@ -233,3 +233,150 @@ Nota de Supabase al reactivar: la data se restauró al estado de antes de pausar
 ### Tech debt registrado
 
 - `fetch({ keepalive: true })` tiene un límite de body de ~64KB en la mayoría de navegadores. Con meses de historial de sesiones el JSON de estado podría acercarse a ese límite. No es un problema ahora; si `AppState` crece mucho, evaluar paginar el estado que se envía en el flush de salida (solo la sesión de hoy) en vez de todo el historial.
+
+---
+
+## Plan de Implementación — Pulido y hardening 2026-07-15
+
+Rol: Solo Claude Code (continúa el rol confirmado en el overhaul anterior, no se repite la pregunta a Tín).
+
+Pedido de Tín: pulir lo que ya está, tras una auditoría de código propia (no de skill `audit` corrida aparte) sobre los 14 archivos de `src/`. Confirmado por Tín: "arregla todo eso" sobre la lista completa. Único punto que se le devolvió a confirmar fue el nivel de auth de las rutas de API — eligió passcode simple.
+
+### Hallazgos y decisiones
+
+| # | Hallazgo | Decisión |
+|---|---|---|
+| 1 | `saveToDatabase` borra y recrea *todas* las sesiones en cada autosave (cada 700ms tras un cambio) | Pasar a upsert por sesión usando los `@@unique` que ya existen en el schema (`[userId, sessionDate]`, `[workoutId, exerciseId]`, `[sessionExerciseId, setIndex]`) — solo tocar lo que cambió, borrar solo lo que ya no está en `state.sessions` |
+| 2 | Cambiar lb/kg no convierte historial ni etiqueta en qué unidad quedó cada sesión | Agregar `weightUnit` a `SessionRecord` (se fija al crear la sesión, no se retro-convierte), mostrar la unidad junto a los pesos en Historial |
+| 3 | "Reiniciar datos" sin confirmación | Patrón de doble tap in-place ("Reiniciar datos" → "¿Seguro? Sí, borrar todo"), sin dependencia nueva ni `window.confirm` nativo (no encaja con el estándar visual editorial) |
+| 4 | Rutas `/api/*` sin auth | Passcode simple: `middleware.ts` + cookie firmada, variable `MUSCULIT_PASSCODE` en `.env.local`. Confirmado por Tín |
+| 5 | Sin manifest ni iconos propios, `public/` con SVGs default de Next.js | `app/manifest.ts` + `app/icon.tsx` + `app/apple-icon.tsx` generados con `next/og` (sin depender de un editor de imágenes externo), paleta ember/brass |
+| 6 | XP de -75 por sesión con <25% de progreso | Cambiar a 0 — no tiene sentido penalizar el registro parcial cuando el objetivo es que Tín anote aunque sea poco |
+| 7 | Botones toggle sin `aria-pressed`/`aria-current` | Agregar a hábitos, checkbox de ejercicio, toggle de cardio, tabs de nav |
+| 8 | Timer de descanso fijo a 2:00 | Chips de preset (90s / 120s / 180s) en vez de un solo valor fijo |
+| 9 | `musculit-app.tsx` en 1640 líneas, todo en un solo client component | Partir en `src/components/musculit/` por tab (`today-tab.tsx`, `history-tab.tsx`, `profile-tab.tsx`, `coach-tab.tsx`, `week-override-panel.tsx`) + un archivo raíz que orquesta estado/efectos |
+| 10 | Cero tests | Agregar `vitest` (sin dependencias pesadas) y cubrir las funciones puras más delicadas de `musculit-state.ts`: `computeWeekReflow`, `isAbsFinisherDay` (vía `getTrainingDayFromDate`), streaks, XP, `getHabitPeriodKey` |
+
+### Orden de ejecución
+
+1. Split de `musculit-app.tsx` en componentes por tab (base para todo lo demás)
+2. Confirmación en "Reiniciar datos"
+3. `aria-pressed`/`aria-current`
+4. Presets de timer de descanso
+5. Fix XP negativo
+6. `weightUnit` por sesión (toca `musculit-state.ts`, schema, `app-state-store.ts`, UI de Historial)
+7. Guardado incremental en DB (upsert por sesión)
+8. Passcode gate
+9. Manifest + iconos PWA
+10. Tests con vitest
+
+Cada bloque se verifica con `tsc --noEmit` y, donde aplica, Playwright en navegador antes de pasar al siguiente.
+
+### Estado — listo (2026-07-15)
+
+Los 10 puntos se implementaron y verificaron en orden. Notas relevantes que no estaban previstas en el plan original:
+
+- **Next.js 16 renombró `middleware.ts` a `proxy.ts`** (con `export function proxy` en vez de `export function middleware`) — el dev server lo marcó como deprecado apenas se creó, así que el passcode gate vive en `src/proxy.ts`, no `middleware.ts`. Confirmado contra `node_modules/next/dist/docs` del propio proyecto.
+- El guardado incremental (#7) originalmente se planeó como upsert por sesión; en la implementación real se resolvió con un hash de contenido (`contentHash`, columna nueva en `WorkoutSession`) que compara contra lo ya guardado y solo reescribe la sesión que cambió — evita tanto el borrado total como recorrer con upserts el historial completo en cada autosave.
+- `buildDeltaLabel` en Progreso de cargas tenía un bug preexistente no listado originalmente: el label de "+X lb promedio" estaba hardcodeado a "lb" sin importar la unidad real, y comparaba pesos de distinta unidad como si fueran la misma. Se corrigió de paso junto con el trabajo de `weightUnit` por sesión, ya que compartía la misma causa raíz.
+- Se eliminaron los SVGs default de Next.js (`file.svg`, `globe.svg`, `next.svg`, `vercel.svg`, `window.svg`) y el `favicon.ico` genérico de `public/` y `src/app/` — no se usaban en ningún lado (confirmado con grep) y los reemplaza `icon.tsx`/`apple-icon.tsx`.
+- Se agregaron `vitest` y `playwright` como devDependencies (no estaban declaradas antes, aunque Playwright ya se usaba de facto en sesiones previas). `npm run test` corre los 16 tests de `musculit-state.ts`.
+- Verificado end-to-end con Playwright contra el dev server real: toggle de ejercicio (`aria-pressed` + glyph), presets de timer, unidad lb/kg, tabs Historial/Coach, doble-tap de "Reiniciar datos", y el flujo completo del passcode gate (redirect a `/candado`, 401 en `/api/*` sin cookie, error con passcode incorrecto, desbloqueo y cookie con el correcto). Sin errores de consola. `tsc --noEmit`, `eslint` y `npm run build` limpios.
+- La base de datos real (Supabase) seguía vacía (`sessions: []`) antes y después de las pruebas — no hizo falta limpiar datos de prueba.
+- **Pendiente de Tín:** definir `MUSCULIT_PASSCODE` en `.env.local` (no se inventó un valor) y en las variables de entorno de Vercel para que el candado quede activo en producción. Sin esa variable, el candado queda desactivado (comportamiento intencional para no romper el dev local).
+
+---
+
+## Plan de Implementación — Migración Perfect Split / InBody / Nutrición 2026-08-18
+
+Rol: **Solo Claude Code** (confirmado por Tín — pregunta obligatoria respondida al inicio de esta sesión).
+
+### Origen
+
+Tín trajo 5 archivos generados en otra conversación con Claude, en `C:\Users\mbund\Downloads\update gym tin\`:
+
+- `MUSCULITO_UPDATE_SPEC.md` — fuente de verdad de la data nueva (perfil, InBody, rutina, nutrición, requisitos de UI, checklist de migración).
+- `Panel_Musculito_Martin_Bundy.html` — spec ejecutable, un solo archivo, implementa el mapa segmentario y el constructor de menú funcionando.
+- `Rutina_PerfectSplit_Martin_Bundy.pdf` y `Plan_Alimentacion_Calibrado_Martin_Bundy.pdf` — versión imprimible de rutina y nutrición.
+
+Los tres se leyeron completos. La rutina y el HTML coinciden en todo. Había una discrepancia entre el PDF de nutrición (proteína 150g / grasas 85g / carbos ~445g) y el spec.md + HTML (155g / 90g / 425g) — **Tín confirmó usar lo del spec+HTML sin darle más vueltas al PDF de la nutricionista**, así que la sección Cocina se construye con 155/90/425 y el resto de la data de `MUSCULITO_UPDATE_SPEC.md` sección 4.
+
+### Qué cambia respecto a lo que hay hoy
+
+| Área | Hoy en el código | Pasa a ser |
+|---|---|---|
+| Split semanal | Pull (mar) / Piernas (mié) / Descanso (jue) / Cardio (vie) / Push (sáb) / Piernas (dom) — Lun y Jue descanso | Full upper (mar) / Piernas 1 (mié) / Espalda+bíceps (jue) / Cardio (vie) / Pecho+hombro+tríceps (sáb) / Piernas 2 (dom) — **solo lunes descanso** |
+| Compañera | "Cata" (`routine-data.ts`, comentarios de `musculit-state.ts`, `week-override-panel.tsx`) | "Angie" |
+| Finisher de core | Sistema dinámico (`isAbsFinisherDay`, hasta 2 días/semana entre Lun-Jue, se recalcula solo) | Fijo: Crunch en máquina + Leg raises dentro de la rutina del Jueves, como cualquier otro ejercicio |
+| Ejercicios | Ver lista de eliminados en la sección 0 del spec (Romanian deadlift, Bulgarian split squat, Barbell cable rows, Cable crunch, Abductor machine, etc.) | Reemplazados uno a uno por los del Perfect Split |
+| Secciones de la app | Hoy / Historial / Perfil / Coach (4 tabs) | + **Cuerpo** (InBody) y **Cocina** (nutrición) — 6 tabs, decisión ya confirmada con Tín |
+| InBody | No existe | Trackeable: tabla nueva en Postgres, se siembra con la lectura del 10/08/2026, preparada para futuras mediciones |
+| Nutrición | No existe (solo tips genéricos de déficit en `habits-data.ts`, que ahora **contradicen** el objetivo de superávit — hay que corregirlos) | Constructor de menú persistido por día (tabla nueva) |
+
+### Decisiones ya tomadas con Tín
+
+1. **Rol:** Solo Claude Code.
+2. **Navegación:** se agregan 2 tabs nuevos (Cuerpo, Cocina) a los 4 que ya funcionan. No se toca la estructura de Hoy/Historial/Perfil/Coach.
+3. **InBody:** trackeable desde ya — tabla nueva en Postgres, no un valor hardcodeado. Pensado para cargar mediciones futuras y mostrar evolución.
+4. **Nutrición:** el constructor de menú persiste la elección del día (tabla nueva), igual que ya se hace con las sesiones de gym — no es una herramienta que se resetea al recargar.
+
+### Decisiones que quedan a mi criterio salvo que Tín las corrija al aprobar este plan
+
+- **Se retira `computeWeekReflow`** (el ciclado automático de secuencia Pull→Piernas→Cardio→Push→Piernas sobre días disponibles). Con el split nuevo cada día de la semana tiene un tipo de sesión distinto y con un orden pensado a propósito (miércoles piernas metido a propósito entre los dos días de espalda para dar 48h de recuperación) — ciclar automáticamente rompería esa lógica. Se mantiene `dayOverrides` como mecanismo simple de "marcar un día puntual como descanso", pero sin el reacomodo automático de secuencia. El panel de "Semana irregular" en Perfil se simplifica en consecuencia.
+- **El finisher de abdomen queda fijo al Jueves** (dentro de Espalda+bíceps), tal como está en el spec y el HTML. El spec menciona "+ el día que el usuario decida" pero no define ese segundo día — se deja para un pedido futuro en vez de inventar una regla nueva no confirmada.
+- Los insights de InBody ("el 91% de tu grasa está en el tronco", etc.) se **calculan desde los números reales** de cada lectura en vez de guardarse como texto fijo — así siguen siendo ciertos cuando se cargue una medición nueva.
+- Los ejercicios que se mantienen sin cambios (Lat pulldown, Preacher curl, Machine incline chest press, Cable lateral raises, etc.) conservan su `cue`/`setup`/`feel`/`alternative` ya escritos. Los que son nuevos (Squats en Smith, Pull-up, Seated row, Hiperextensión lumbar, Peso muerto barra libre, Femoral acostado, Abductores abiertos y cerrados, Crunch en máquina abdominal, Lunges con mancuerna) se escriben desde cero, mismo estándar de calidad que los existentes.
+- Cero dependencias nuevas — mismo criterio que el resto del proyecto. El mapa segmentario se hace con SVG + React (como en el HTML de referencia), el constructor de menú con estado de React normal.
+- La paleta del spec (`--lean`/`--fat`/etc.) **no se trae en paralelo** — se adapta a los tokens ya existentes del proyecto (`--ember`, `--status-good`, `--ink-strong`...) para no partir la identidad visual en dos sistemas de color.
+
+### Riesgo detectado: trabajo pendiente sin commitear
+
+`git status` muestra que **todo el bloque de "Pulido y hardening 2026-07-15"** (split de componentes, passcode gate, guardado incremental, manifest/iconos, tests) sigue sin commitear desde hace más de un mes, aunque ya está verificado y funcionando (`tsc`, `vitest`, `eslint`, `build` limpios ahora mismo). Antes de empezar la migración se recomienda un commit de ese trabajo por separado, para no mezclar un diff de refactor+hardening con el de la migración de rutina/InBody/nutrición en un solo commit gigante difícil de revisar o revertir.
+
+### Bloques de ejecución
+
+**Bloque 0 — Housekeeping**
+- Commit del trabajo pendiente de hardening (aparte, antes de tocar nada nuevo).
+- Copiar los 5 archivos de referencia a `docs/actualizacion-2026-08/` dentro del repo, mismo patrón que ya usa el proyecto para documentos fuente de verdad (`ROUTINE.md`, etc.), para que queden versionados y no dependan de la carpeta Downloads.
+
+**Bloque 1 — Rutina (fuente de verdad primero)**
+- Reescribir `ROUTINE.md` completo con el Perfect Split, reglas nuevas (fallo en piernas, lunes fijo, Angie).
+- Reescribir `routine-data.ts`: los 7 días (`weeklySplit`), ejercicios nuevos con `cue`/`setup`/`feel`/`alternative`, se retira `coreFinisherExercises`.
+- Simplificar `musculit-state.ts`: quitar `isAbsFinisherDay` y el uso de `coreFinisherExercises`; `getTrainingDayFromDate` vuelve a ser un lookup directo. Se retira `computeWeekReflow` (ver decisión arriba).
+- Reescribir `musculit-state.test.ts` con fixtures del split nuevo.
+- Verificar: `tsc --noEmit`, `vitest run`.
+
+**Bloque 2 — Angie / limpieza de nombre**
+- Grep final de "Cata" en todo `/src` tras el Bloque 1 (ya cubre `routine-data.ts` y los comentarios de `musculit-state.ts`; falta revisar `week-override-panel.tsx` y strings de UI) — cero resultados antes de cerrar el bloque, tal como pide el checklist del spec.
+
+**Bloque 3 — Esquema de datos (InBody + Nutrición)**
+- `prisma/schema.prisma`: modelo `InBodyReading` (todas las métricas de la sección 2 del spec + análisis segmentario + control de peso) y modelo `NutritionLog` (`userId` + `date` único, elección de comida por tiempo, extras activados — mismo patrón sparse/JSON que `dayOverrides`).
+- `npx prisma db push` contra Supabase.
+- `app-state-store.ts` y `AppState`: cargar/guardar `inBodyReadings` y `nutritionLogs`, con el mismo fallback a archivo local que ya existe. Sembrar la lectura real del 10/08/2026 como primer registro.
+- Verificar con Playwright que la lectura sembrada carga bien.
+
+**Bloque 4 — Tab Cuerpo**
+- `src/lib/inbody-data.ts`: tipos, rangos de referencia, fórmula de intensidad de color, generación de insights desde los números reales.
+- `src/components/musculit/body-tab.tsx`: mapa segmentario SVG con toggle masa magra/grasa, grid de indicadores con barras de rango, sección de lectura.
+- Integrar a la nav (6 tabs).
+- Verificar contraste WCAG AA con la paleta del proyecto y ausencia de solapamiento a 375px con Playwright.
+
+**Bloque 5 — Tab Cocina**
+- `src/lib/nutrition-data.ts`: comidas, opciones, macros, extras, metas (con los números del spec+HTML: 155/90/425).
+- `src/components/musculit/kitchen-tab.tsx`: selector por tiempo de comida con botón "Cambiar" y contador X/N, chips de extras, barra de totales sticky con progreso en vivo — persistido contra `NutritionLog`.
+- Corregir `habits-data.ts`: el tip de "déficit calórico moderado" contradice el superávit nuevo — se reemplaza por contenido coherente con la sección 4.3 del spec.
+- Verificar con Playwright: elegir opciones, totales correctos, recarga y confirma que persiste.
+
+**Bloque 6 — Coach (Groq) con contexto ampliado**
+- `src/app/api/coach/route.ts`: sumar al contexto la última lectura de InBody y las metas nutricionales del día.
+- Verificar que el resumen/análisis sigue respondiendo sin errores.
+
+**Bloque 7 — PDF, limpieza final y cierre**
+- Verificar que `/rutina` refleja el Perfect Split y "Angie" automáticamente (lee de `weeklySplit`); ajustar layout si hace falta por el mayor número de ejercicios en Martes.
+- Grep repo-wide final de los ejercicios eliminados (checklist del spec, sección 0) — cero resultados.
+- Actualizar `README.md` (tabla de split semanal) y este archivo con el estado final.
+- `tsc --noEmit`, `eslint`, `npm run build`, `vitest run` limpios. Playwright end-to-end de las 6 pantallas.
+
+### Estado
+
+Plan escrito, pendiente de aprobación explícita de Tín antes de tocar código.
