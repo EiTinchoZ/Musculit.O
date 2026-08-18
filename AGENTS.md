@@ -428,4 +428,16 @@ Pedido de Tín: días específicos cada mes para pesarse y tomarse fotos de prog
 - **Storage de fotos: base64 en Postgres**, sin servicio nuevo (ni Supabase Storage ni Vercel Blob). Las fotos se redimensionan/comprimen en el navegador (canvas nativo) antes de subirse. Volumen real esperado (4 fotos x 1 vez al mes) es liviano para el free tier de Supabase. Si en el futuro esto pesa demasiado en la base, ahí sí se evalúa migrar a un bucket — no antes.
 - **Cálculo de próxima fecha:** sin hardcodear "fin de mes" — se calcula como fin del mes siguiente al del último chequeo (`checkinDate.month + 1`), así el primer chequeo (hoy, no fin de mes) también encaja en la regla sin caso especial.
 
-Pendiente de implementar: modelos `ProgressCheckin`/`ProgressPhoto` en Prisma, UI de captura (`<input type=file capture=environment>` + resize por canvas), timeline de chequeos pasados, indicador de próximo chequeo.
+### Estado — listo (2026-08-18)
+
+Implementado y verificado:
+- `prisma/schema.prisma`: `ProgressCheckin` (peso + `contentHash`) y `ProgressPhoto` (ángulo + imagen base64), con el mismo patrón de `WorkoutSession` — las fotos solo se reescriben si el contenido cambió de verdad (comparando `contentHash`), para no re-subir base64 pesado en cada autosave disparado por cualquier otro cambio de estado.
+- `src/lib/progress-checkin-data.ts`: ángulos de foto (frente/espalda/costado/bíceps), `getNextCheckinDate` (fin del mes siguiente al de la última fecha — sin caso especial para el primer chequeo, la fórmula ya lo resuelve).
+- `src/lib/image-resize.ts`: resize a 1000px del lado más largo + JPEG calidad 0.82 vía canvas nativo, sin dependencias.
+- `src/components/musculit/progress-checkin-card.tsx`: card en el tab Cuerpo con estado "próximo chequeo" / "toca hoy", formulario de peso + 4 fotos (`<input type=file capture=environment>` para abrir la cámara trasera en mobile), y timeline de chequeos pasados con miniaturas.
+- `resetAllData` (Perfil) actualizado para preservar también `progressCheckins`, mismo criterio que `inBodyReadings` — es historial biométrico, no dato de entreno.
+- `npx prisma db push` aplicado contra Supabase (solo agrega tablas).
+- Verificado end-to-end con Playwright: guardar un chequeo (peso + 2 fotos), confirmar que `getNextCheckinDate` calculó bien 18/08 → 30/09, recargar la página y confirmar que persiste desde la base real. Un intento de test con `force:true` en el click de guardar chocó con el hot-reload de Turbopack (no un bug de la app) — se resolvió sacando el `force`. Datos de prueba limpiados de la base real después (`progressCheckins: []`, el único registro real que queda es la lectura de InBody sembrada).
+- `tsc`, `eslint`, `vitest` (21 tests) y `npm run build` limpios.
+
+**No implementado a propósito (fuera de alcance de este pedido):** comparación lado a lado entre el primer chequeo y el último. El timeline ya permite ver la evolución scrolleando; si Tín lo pide, es un agregado natural sobre los mismos datos.

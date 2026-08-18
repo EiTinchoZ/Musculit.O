@@ -28,6 +28,7 @@ model UserProfile {
   sessions         WorkoutSession[]
   inBodyReadings   InBodyReading[]
   nutritionLogs    NutritionLog[]
+  progressCheckins ProgressCheckin[]
 }
 
 model WorkoutSession {
@@ -127,4 +128,30 @@ model NutritionLog {
 
   @@unique([userId, date])
   @@index([date])
+}
+
+model ProgressCheckin {
+  id          String          @id @default(cuid())
+  userId      String
+  date        DateTime
+  weightKg    Float
+  contentHash String          @default("")
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  user        UserProfile     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  photos      ProgressPhoto[]
+
+  @@unique([userId, date])
+  @@index([date])
+}
+
+model ProgressPhoto {
+  id        String          @id @default(cuid())
+  checkinId String
+  angle     String
+  imageData String
+  createdAt DateTime        @default(now())
+  checkin   ProgressCheckin @relation(fields: [checkinId], references: [id], onDelete: Cascade)
+
+  @@unique([checkinId, angle])
 }

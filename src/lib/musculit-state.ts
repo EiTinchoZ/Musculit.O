@@ -78,6 +78,20 @@ export type NutritionSelection = {
   extrasSelected: string[];
 };
 
+export type ProgressPhotoAngle = "front" | "back" | "side" | "biceps";
+
+export type ProgressPhoto = {
+  angle: ProgressPhotoAngle;
+  imageData: string;
+};
+
+export type ProgressCheckin = {
+  id: string;
+  date: string;
+  weightKg: number;
+  photos: ProgressPhoto[];
+};
+
 export type AppState = {
   user: UserProfile;
   preferences: Preferences;
@@ -86,6 +100,7 @@ export type AppState = {
   habitCompletions: HabitCompletions;
   inBodyReadings: InBodyReading[];
   nutritionLogs: Record<string, NutritionSelection>;
+  progressCheckins: ProgressCheckin[];
 };
 
 export type DerivedStats = {
@@ -127,6 +142,7 @@ export const initialState: AppState = {
   habitCompletions: {},
   inBodyReadings: [],
   nutritionLogs: {},
+  progressCheckins: [],
 };
 
 export function getLatestInBodyReading(state: AppState): InBodyReading | null {

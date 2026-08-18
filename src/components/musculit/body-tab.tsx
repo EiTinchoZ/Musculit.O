@@ -16,6 +16,7 @@ import {
 } from "@/lib/inbody-data";
 import { AppState, BodySegments, InBodyReading } from "@/lib/musculit-state";
 import { CountUpValue } from "@/components/musculit/count-up-value";
+import { ProgressCheckinCard } from "@/components/musculit/progress-checkin-card";
 
 type SegmentMode = "lean" | "fat";
 
@@ -34,9 +35,10 @@ const SEGMENT_BASE_HEX = "#27394B";
 type BodyTabProps = {
   state: AppState;
   setState: Dispatch<SetStateAction<AppState>>;
+  todayIso: string;
 };
 
-export function BodyTab({ state, setState }: BodyTabProps) {
+export function BodyTab({ state, setState, todayIso }: BodyTabProps) {
   const readings = useMemo(
     () => [...state.inBodyReadings].sort((a, b) => b.date.localeCompare(a.date)),
     [state.inBodyReadings],
@@ -55,6 +57,7 @@ export function BodyTab({ state, setState }: BodyTabProps) {
   if (!reading) {
     return (
       <section className="flex flex-col gap-4">
+        <ProgressCheckinCard state={state} setState={setState} todayIso={todayIso} />
         <div className="rounded-2xl border border-[var(--line-soft)] bg-[var(--panel)] p-5">
           <p className="text-sm text-[var(--ink-soft)]">
             Todavia no hay ninguna medicion de InBody cargada.
@@ -67,6 +70,8 @@ export function BodyTab({ state, setState }: BodyTabProps) {
 
   return (
     <section className="flex flex-col gap-4">
+      <ProgressCheckinCard state={state} setState={setState} todayIso={todayIso} />
+
       {readings.length > 1 && (
         <div className="flex gap-2 overflow-x-auto pb-1">
           {readings.map((r) => (

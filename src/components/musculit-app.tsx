@@ -258,9 +258,14 @@ export function MusculitApp() {
   }
 
   function resetAllData() {
-    // Las mediciones de InBody son historial biometrico, no datos de entreno —
-    // "Reiniciar datos" borra sesiones/habitos/nutricion pero las preserva.
-    setState((current) => ({ ...initialState, inBodyReadings: current.inBodyReadings }));
+    // Las mediciones de InBody y los chequeos de fotos son historial
+    // biometrico, no datos de entreno — "Reiniciar datos" borra
+    // sesiones/habitos/nutricion pero los preserva.
+    setState((current) => ({
+      ...initialState,
+      inBodyReadings: current.inBodyReadings,
+      progressCheckins: current.progressCheckins,
+    }));
     setCelebration({ title: "Datos reiniciados", body: "La app volvio al estado base." });
   }
 
@@ -331,7 +336,7 @@ export function MusculitApp() {
 
         {activeTab === "history" ? <HistoryTab state={state} today={today} todayIso={todayIso} /> : null}
 
-        {activeTab === "body" ? <BodyTab state={state} setState={setState} /> : null}
+        {activeTab === "body" ? <BodyTab state={state} setState={setState} todayIso={todayIso} /> : null}
 
         {activeTab === "kitchen" ? <KitchenTab state={state} setState={setState} todayIso={todayIso} /> : null}
 
@@ -424,6 +429,7 @@ function loadInitialState() {
       habitCompletions: parsed.habitCompletions ?? {},
       inBodyReadings: parsed.inBodyReadings?.length ? parsed.inBodyReadings : [SEEDED_INBODY_READING],
       nutritionLogs: parsed.nutritionLogs ?? {},
+      progressCheckins: parsed.progressCheckins ?? [],
     });
   } catch {
     return { ...initialState, inBodyReadings: [SEEDED_INBODY_READING] };
@@ -474,5 +480,6 @@ function normalizeLoadedState(raw: AppState) {
     habitCompletions: raw.habitCompletions ?? {},
     inBodyReadings: raw.inBodyReadings?.length ? raw.inBodyReadings : [SEEDED_INBODY_READING],
     nutritionLogs: raw.nutritionLogs ?? {},
+    progressCheckins: raw.progressCheckins ?? [],
   } satisfies AppState;
 }

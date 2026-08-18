@@ -11,6 +11,7 @@ import {
   DayOverrides,
   InBodyReading,
   NutritionSelection,
+  ProgressCheckin,
   SessionRecord,
   createEmptySession,
   fromIsoDate,
@@ -74,6 +75,7 @@ async function loadFromFile() {
       habitCompletions: parsed.habitCompletions ?? {},
       inBodyReadings: parsed.inBodyReadings ?? [],
       nutritionLogs: parsed.nutritionLogs ?? {},
+      progressCheckins: parsed.progressCheckins ?? [],
     });
   } catch {
     return initialState;
@@ -120,6 +122,7 @@ async function loadFromDatabase() {
       },
       inBodyReadings: { orderBy: { date: "asc" } },
       nutritionLogs: { orderBy: { date: "asc" } },
+      progressCheckins: { include: { photos: true }, orderBy: { date: "asc" } },
     },
   });
 
@@ -177,6 +180,16 @@ async function loadFromDatabase() {
     };
   }
 
+  const progressCheckins: ProgressCheckin[] = user.progressCheckins.map((row) => ({
+    id: row.id,
+    date: toIsoDate(row.date),
+    weightKg: row.weightKg,
+    photos: row.photos.map((photo) => ({
+      angle: photo.angle as ProgressCheckin["photos"][number]["angle"],
+      imageData: photo.imageData,
+    })),
+  }));
+
   return normalizeAppState({
     user: {
       name: user.name,
@@ -198,6 +211,7 @@ async function loadFromDatabase() {
     habitCompletions: normalizeHabitCompletions(user.habitCompletions),
     inBodyReadings,
     nutritionLogs,
+    progressCheckins,
   });
 }
 
@@ -378,7 +392,54 @@ async function saveToDatabase(state: AppState) {
         create: { userId: user.id, date: fromIsoDate(isoDate), mealChoices, extrasSelected },
       });
     }
+
+    // Chequeos de progreso: mismo patron que WorkoutSession — las fotos
+    // (base64, varios cientos de KB cada una) solo se reescriben si el
+    // contenido del chequeo cambio de verdad, para no resubirlas en cada
+    // autosave disparado por un cambio en cualquier otra parte del estado.
+    const existingCheckins = await tx.progressCheckin.findMany({
+      where: { userId: user.id },
+      select: { id: true, date: true, contentHash: true },
+    });
+    const existingCheckinsByIso = new Map(existingCheckins.map((row) => [toIsoDate(row.date), row]));
+    const incomingCheckinIsoDates = new Set(state.progressCheckins.map((checkin) => checkin.date));
+    const staleCheckinIds = existingCheckins
+      .filter((row) => !incomingCheckinIsoDates.has(toIsoDate(row.date)))
+      .map((row) => row.id);
+    if (staleCheckinIds.length) {
+      await tx.progressCheckin.deleteMany({ where: { id: { in: staleCheckinIds } } });
+    }
+    for (const checkin of state.progressCheckins) {
+      const contentHash = computeCheckinContentHash(checkin);
+      const existingRow = existingCheckinsByIso.get(checkin.date);
+      if (existingRow && existingRow.contentHash === contentHash) {
+        continue;
+      }
+      const row = await tx.progressCheckin.upsert({
+        where: { userId_date: { userId: user.id, date: fromIsoDate(checkin.date) } },
+        update: { weightKg: checkin.weightKg, contentHash },
+        create: { userId: user.id, date: fromIsoDate(checkin.date), weightKg: checkin.weightKg, contentHash },
+      });
+      await tx.progressPhoto.deleteMany({ where: { checkinId: row.id } });
+      if (checkin.photos.length) {
+        await tx.progressPhoto.createMany({
+          data: checkin.photos.map((photo) => ({
+            checkinId: row.id,
+            angle: photo.angle,
+            imageData: photo.imageData,
+          })),
+        });
+      }
+    }
   });
+}
+
+function computeCheckinContentHash(checkin: ProgressCheckin): string {
+  const canonical = {
+    weightKg: checkin.weightKg,
+    photos: [...checkin.photos].sort((a, b) => a.angle.localeCompare(b.angle)),
+  };
+  return createHash("sha1").update(JSON.stringify(canonical)).digest("hex");
 }
 
 function inBodyReadingRow(reading: InBodyReading) {
@@ -453,6 +514,7 @@ function normalizeAppState(state: AppState): AppState {
     habitCompletions: { ...initialState.habitCompletions, ...(state.habitCompletions ?? {}) },
     inBodyReadings,
     nutritionLogs: { ...initialState.nutritionLogs, ...(state.nutritionLogs ?? {}) },
+    progressCheckins: state.progressCheckins ?? [],
   };
 }
 
