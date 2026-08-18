@@ -10,6 +10,7 @@ import {
 } from "@/lib/musculit-state";
 import { normalizeSetWeights } from "@/lib/set-utils";
 import { WeekOverridePanel } from "./week-override-panel";
+import { CountUpValue } from "./count-up-value";
 
 type ProfileTabProps = {
   state: AppState;
@@ -35,12 +36,13 @@ export function ProfileTab({
   return (
     <section className="flex flex-col gap-4">
       {/* Stats */}
-      <div className="grid grid-cols-2 gap-3">
-        <StatCard label="Racha" value={`${stats.streak}`} hint={`Max ${stats.maxStreak}`} />
-        <StatCard label="Nivel" value={`${stats.level}`} hint={`${stats.totalXp} XP`} />
+      <div className="card-enter grid grid-cols-2 gap-3">
+        <StatCard label="Racha" numericValue={stats.streak} hint={`Max ${stats.maxStreak}`} />
+        <StatCard label="Nivel" numericValue={stats.level} hint={`${stats.totalXp} XP`} />
         <StatCard
           label="Consistencia"
-          value={`${stats.consistency}%`}
+          numericValue={stats.consistency}
+          suffix="%"
           hint={`${stats.completedDays} sesiones`}
         />
         <StatCard
@@ -51,20 +53,26 @@ export function ProfileTab({
       </div>
 
       {/* Progreso de cargas */}
-      <div className="rounded-2xl border border-[var(--line-soft)] bg-[var(--panel)] p-5">
+      <div className="card-enter card-enter-1 rounded-2xl border border-[var(--line-soft)] bg-[var(--panel)] p-5">
         <p className="text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">Progreso de cargas</p>
         <div className="mt-4 grid gap-3">
           {progressSummaries.length ? (
             progressSummaries.slice(0, 6).map((item) => (
               <div
                 key={item.key}
-                className="rounded-xl border border-[var(--line-soft)] bg-[var(--panel-strong)] px-4 py-3"
+                className="flex items-center gap-3 rounded-xl border border-[var(--line-soft)] bg-[var(--panel-strong)] px-4 py-3"
               >
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-sm font-medium">{item.name}</p>
-                  <p className="text-xs text-[var(--ink-soft)]">{item.latestDate}</p>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="truncate text-sm font-medium">{item.name}</p>
+                    <p className="shrink-0 text-xs text-[var(--ink-soft)]">{item.latestDate}</p>
+                  </div>
+                  <p className="mt-1 text-xs text-[var(--ink-soft)]">{item.deltaLabel}</p>
                 </div>
-                <p className="mt-1 text-xs text-[var(--ink-soft)]">{item.deltaLabel}</p>
+                <Sparkline
+                  values={item.sparkline}
+                  color={item.deltaTrend === "up" ? "var(--status-good)" : item.deltaTrend === "down" ? "var(--danger)" : "var(--ink-soft)"}
+                />
               </div>
             ))
           ) : (
@@ -76,7 +84,7 @@ export function ProfileTab({
       </div>
 
       {/* Datos personales */}
-      <div className="rounded-2xl border border-[var(--line-soft)] bg-[var(--panel)] p-5">
+      <div className="card-enter card-enter-2 rounded-2xl border border-[var(--line-soft)] bg-[var(--panel)] p-5">
         <p className="text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">Perfil</p>
         <div className="mt-4 grid gap-3">
           <ProfileField
@@ -170,11 +178,71 @@ function ResetDataButton({ onReset }: { onReset: () => void }) {
   );
 }
 
-function StatCard({ label, value, hint }: { label: string; value: string; hint: string }) {
+function Sparkline({ values, color }: { values: number[]; color: string }) {
+  if (values.length < 2) {
+    return <div className="h-6 w-16 flex-shrink-0" />;
+  }
+
+  const width = 64;
+  const height = 24;
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const span = max - min || 1;
+
+  const points = values
+    .map((value, index) => {
+      const x = (index / (values.length - 1)) * width;
+      const y = height - 2 - ((value - min) / span) * (height - 4);
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    })
+    .join(" ");
+
+  const lastX = width;
+  const lastY = height - 2 - ((values[values.length - 1] - min) / span) * (height - 4);
+
+  return (
+    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} className="flex-shrink-0">
+      <polyline
+        points={points}
+        fill="none"
+        stroke={color}
+        strokeWidth="1.75"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeDasharray={200}
+        className="chart-line-draw"
+      />
+      <circle cx={lastX} cy={lastY} r="2.25" fill={color} />
+    </svg>
+  );
+}
+
+function StatCard({
+  label,
+  value,
+  numericValue,
+  suffix,
+  hint,
+}: {
+  label: string;
+  value?: string;
+  numericValue?: number;
+  suffix?: string;
+  hint: string;
+}) {
   return (
     <div className="rounded-2xl border border-[var(--line-soft)] bg-[var(--panel)] p-4">
       <p className="text-xs uppercase tracking-[0.18em] text-[var(--ink-soft)]">{label}</p>
-      <p className="mt-2 font-serif text-3xl">{value}</p>
+      <p className="mt-2 font-serif text-3xl">
+        {numericValue !== undefined ? (
+          <>
+            <CountUpValue value={numericValue} />
+            {suffix}
+          </>
+        ) : (
+          value
+        )}
+      </p>
       <p className="mt-1 text-xs text-[var(--ink-soft)]">{hint}</p>
     </div>
   );
@@ -222,6 +290,8 @@ function getExerciseProgressSummaries(state: AppState) {
     group: string;
     latestDate: string;
     deltaLabel: string;
+    deltaTrend: "up" | "down" | "flat";
+    sparkline: number[];
   }> = [];
 
   for (const [key, exerciseMeta] of uniqueExercises.entries()) {
@@ -246,12 +316,29 @@ function getExerciseProgressSummaries(state: AppState) {
 
     const latest = entries[0];
     const previous = entries[1];
+    const sparkline = entries
+      .slice(0, 8)
+      .reverse()
+      .map((entry) => averageNumericWeight(entry.weights))
+      .filter((value): value is number => value !== null);
+
+    let deltaTrend: "up" | "down" | "flat" = "flat";
+    if (previous && latest.weightUnit === previous.weightUnit) {
+      const latestAvg = averageNumericWeight(latest.weights);
+      const previousAvg = averageNumericWeight(previous.weights);
+      if (latestAvg !== null && previousAvg !== null) {
+        deltaTrend = latestAvg > previousAvg ? "up" : latestAvg < previousAvg ? "down" : "flat";
+      }
+    }
+
     summaries.push({
       key,
       name: exerciseMeta.name,
       group: exerciseMeta.group,
       latestDate: latest.isoDate,
       deltaLabel: previous ? buildDeltaLabel(latest, previous) : "Primer registro",
+      deltaTrend,
+      sparkline,
     });
   }
 

@@ -3,6 +3,7 @@
 import { useMemo, useState, type Dispatch, type SetStateAction } from "react";
 import {
   bodyMetrics,
+  buildTrendSeries,
   classifyRange,
   getBodyInsights,
   mixSegmentColor,
@@ -10,8 +11,11 @@ import {
   rangeStatusLabel,
   rangeZone,
   segmentIntensity,
+  trendMetrics,
+  type TrendMetricId,
 } from "@/lib/inbody-data";
 import { AppState, BodySegments, InBodyReading } from "@/lib/musculit-state";
+import { CountUpValue } from "@/components/musculit/count-up-value";
 
 type SegmentMode = "lean" | "fat";
 
@@ -83,9 +87,18 @@ export function BodyTab({ state, setState }: BodyTabProps) {
         </div>
       )}
 
-      <SegmentMapCard reading={reading} />
-      <IndicatorsCard reading={reading} />
-      <InsightsCard reading={reading} />
+      <div className="card-enter">
+        <SegmentMapCard reading={reading} />
+      </div>
+      <div className="card-enter card-enter-1">
+        <TrendChartCard readings={state.inBodyReadings} />
+      </div>
+      <div className="card-enter card-enter-2">
+        <IndicatorsCard reading={reading} />
+      </div>
+      <div className="card-enter card-enter-3">
+        <InsightsCard reading={reading} />
+      </div>
       <AddReadingForm onSave={addReading} />
     </section>
   );
@@ -186,6 +199,112 @@ function SegmentValue({ label, value, color }: { label: string; value: number; c
   );
 }
 
+function TrendChartCard({ readings }: { readings: InBodyReading[] }) {
+  const [metricId, setMetricId] = useState<TrendMetricId>("bodyFatPercent");
+  const metric = trendMetrics.find((m) => m.id === metricId)!;
+  const series = useMemo(() => buildTrendSeries(readings, metric), [readings, metric]);
+
+  const width = 320;
+  const height = 120;
+  const padX = 14;
+  const padY = 16;
+
+  const values = series.map((p) => p.value);
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const span = max - min || 1;
+
+  function xFor(index: number) {
+    if (series.length <= 1) return width / 2;
+    return padX + (index / (series.length - 1)) * (width - padX * 2);
+  }
+  function yFor(value: number) {
+    return height - padY - ((value - min) / span) * (height - padY * 2);
+  }
+
+  const pathD = series.map((p, i) => `${i === 0 ? "M" : "L"} ${xFor(i).toFixed(1)} ${yFor(p.value).toFixed(1)}`).join(" ");
+  const areaD =
+    series.length > 1 ? `${pathD} L ${xFor(series.length - 1).toFixed(1)} ${height} L ${xFor(0).toFixed(1)} ${height} Z` : "";
+
+  const latest = series[series.length - 1];
+  const previous = series.length > 1 ? series[series.length - 2] : null;
+  const delta = previous ? latest.value - previous.value : null;
+
+  return (
+    <div className="rounded-2xl border border-[var(--line-soft)] bg-[var(--panel)] p-5">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">Evolucion</p>
+        {delta !== null && (
+          <span className="font-mono text-[11px]" style={{ color: delta === 0 ? "var(--ink-soft)" : metric.color }}>
+            {delta > 0 ? "+" : ""}
+            {delta.toFixed(1)} {metric.unit} desde la anterior
+          </span>
+        )}
+      </div>
+
+      <div className="mt-3 flex gap-1.5">
+        {trendMetrics.map((m) => (
+          <button
+            key={m.id}
+            type="button"
+            aria-pressed={m.id === metricId}
+            onClick={() => setMetricId(m.id)}
+            className="min-h-8 rounded-full border px-3 text-[11px] uppercase tracking-[0.08em] transition"
+            style={
+              m.id === metricId
+                ? { background: m.color, borderColor: m.color, color: "var(--page-background)" }
+                : { borderColor: "var(--line-soft)", color: "var(--ink-soft)" }
+            }
+          >
+            {m.shortLabel}
+          </button>
+        ))}
+      </div>
+
+      {series.length < 2 ? (
+        <div className="mt-5 flex flex-col items-center gap-2 py-6 text-center">
+          <p className="font-mono text-3xl font-semibold" style={{ color: metric.color }}>
+            <CountUpValue value={latest.value} decimals={1} />
+            <span className="ml-1 text-sm font-normal text-[var(--ink-soft)]">{metric.unit}</span>
+          </p>
+          <p className="max-w-[26ch] text-xs leading-5 text-[var(--ink-soft)]">
+            Agrega mas mediciones para ver la tendencia en el tiempo.
+          </p>
+        </div>
+      ) : (
+        <div className="mt-4">
+          <svg key={metricId} viewBox={`0 0 ${width} ${height}`} className="w-full" preserveAspectRatio="none">
+            <path d={areaD} fill={metric.color} opacity="0.08" stroke="none" />
+            <path
+              d={pathD}
+              fill="none"
+              stroke={metric.color}
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeDasharray={1000}
+              className="chart-line-draw"
+            />
+            {series.map((p, i) => (
+              <circle
+                key={p.date}
+                cx={xFor(i)}
+                cy={yFor(p.value)}
+                r={i === series.length - 1 ? 4 : 2.5}
+                fill={metric.color}
+              />
+            ))}
+          </svg>
+          <div className="mt-1 flex justify-between font-mono text-[10px] text-[var(--ink-soft)]">
+            <span>{series[0].date}</span>
+            <span>{series[series.length - 1].date}</span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function IndicatorsCard({ reading }: { reading: InBodyReading }) {
   return (
     <div className="rounded-2xl border border-[var(--line-soft)] bg-[var(--panel)] p-5">
@@ -214,7 +333,7 @@ function IndicatorsCard({ reading }: { reading: InBodyReading }) {
                 )}
               </div>
               <p className="mt-2 font-mono text-2xl font-semibold">
-                {value.toFixed(value % 1 === 0 ? 0 : 2)}
+                <CountUpValue value={value} decimals={value % 1 === 0 ? 0 : 2} />
                 <span className="ml-1 text-sm font-normal text-[var(--ink-soft)]">{metric.unit}</span>
               </p>
               {metric.range && <RangeBar value={value} range={metric.range} />}
@@ -239,7 +358,7 @@ function RangeBar({ value, range }: { value: number; range: { min: number; norma
           style={{ left: `${zone.start}%`, width: `${Math.max(0, zone.end - zone.start)}%` }}
         />
         <div
-          className="absolute -top-1 h-3.5 w-[3px] rounded-full bg-[var(--ink-strong)]"
+          className="absolute -top-1 h-3.5 w-[3px] rounded-full bg-[var(--ink-strong)] transition-[left] duration-500 ease-out"
           style={{ left: `${markPosition}%`, transform: "translateX(-50%)" }}
         />
       </div>

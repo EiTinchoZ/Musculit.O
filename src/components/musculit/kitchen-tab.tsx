@@ -3,6 +3,7 @@
 import type { Dispatch, SetStateAction } from "react";
 import { extras, meals, nutritionTargets, sumMacros, vegetableTips, type MacroTuple } from "@/lib/nutrition-data";
 import { AppState, getNutritionLogForDate } from "@/lib/musculit-state";
+import { CountUpValue } from "@/components/musculit/count-up-value";
 
 type KitchenTabProps = {
   state: AppState;
@@ -59,12 +60,14 @@ export function KitchenTab({ state, setState, todayIso }: KitchenTabProps) {
 
   return (
     <section className="flex flex-col gap-4">
-      <div className="rounded-2xl border border-[var(--line-soft)] bg-[var(--panel)] p-5">
+      <div className="card-enter rounded-2xl border border-[var(--line-soft)] bg-[var(--panel)] p-5">
         <p className="text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">Tus numeros</p>
-        <div className="mt-4 grid grid-cols-3 gap-2.5">
-          <NumberCard label="Mantenimiento" value={nutritionTargets.maintenanceKcal} unit="kcal" />
-          <NumberCard label="Meta diaria" value={nutritionTargets.calorieGoal} unit="kcal" accent />
-          <NumberCard label="Proteina min." value={nutritionTargets.proteinG} unit="g" />
+        <div className="mt-4 flex items-center gap-4">
+          <CalorieRing consumed={totals[0]} goal={nutritionTargets.calorieGoal} />
+          <div className="grid flex-1 grid-cols-2 gap-2.5">
+            <NumberCard label="Mantenimiento" value={nutritionTargets.maintenanceKcal} unit="kcal" />
+            <NumberCard label="Proteina min." value={nutritionTargets.proteinG} unit="g" />
+          </div>
         </div>
         <p className="mt-4 border-t border-[var(--line-soft)] pt-4 text-sm leading-6 text-[var(--ink-soft)]">
           Superavit <strong className="text-[var(--ink-strong)]">leve</strong>, no un bulk agresivo. La grasa
@@ -73,7 +76,7 @@ export function KitchenTab({ state, setState, todayIso }: KitchenTabProps) {
         </p>
       </div>
 
-      <div className="flex flex-col gap-3">
+      <div className="card-enter card-enter-1 flex flex-col gap-3">
         <p className="text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">Arma tu dia</p>
         {meals.map((meal) => {
           const optionIndex = (selection.mealChoices[meal.id] ?? 0) % meal.options.length;
@@ -109,7 +112,7 @@ export function KitchenTab({ state, setState, todayIso }: KitchenTabProps) {
         })}
       </div>
 
-      <div>
+      <div className="card-enter card-enter-2">
         <p className="mb-2 text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">Extras</p>
         <div className="flex flex-wrap gap-2">
           {extras.map((extra) => {
@@ -143,7 +146,7 @@ export function KitchenTab({ state, setState, todayIso }: KitchenTabProps) {
         </div>
       </div>
 
-      <div className="rounded-2xl border border-[var(--line-soft)] bg-[var(--panel)] p-5">
+      <div className="card-enter card-enter-3 rounded-2xl border border-[var(--line-soft)] bg-[var(--panel)] p-5">
         <p className="text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">Vegetales sin sufrir</p>
         <div className="mt-4 grid gap-2.5">
           {vegetableTips.map((tip) => (
@@ -182,9 +185,46 @@ function NumberCard({
         className="mt-1.5 font-mono text-lg font-semibold"
         style={accent ? { color: "var(--ember-strong)" } : undefined}
       >
-        {value}
+        <CountUpValue value={value} />
         <span className="ml-0.5 text-[10px] font-normal text-[var(--ink-soft)]">{unit}</span>
       </p>
+    </div>
+  );
+}
+
+function CalorieRing({ consumed, goal }: { consumed: number; goal: number }) {
+  const progress = goal > 0 ? Math.min(1, Math.max(0, consumed / goal)) : 0;
+  const size = 96;
+  const strokeWidth = 9;
+  const radius = (size - strokeWidth) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const offset = circumference * (1 - progress);
+
+  return (
+    <div className="relative flex-shrink-0" style={{ width: size, height: size }}>
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+        <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="var(--line-soft)" strokeWidth={strokeWidth} />
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          fill="none"
+          stroke="var(--ember-strong)"
+          strokeWidth={strokeWidth}
+          strokeLinecap="round"
+          strokeDasharray={circumference}
+          strokeDashoffset={offset}
+          transform={`rotate(-90 ${size / 2} ${size / 2})`}
+          style={{ transition: "stroke-dashoffset 700ms cubic-bezier(0.16,1,0.3,1)" }}
+        />
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <span className="font-mono text-lg font-semibold text-[var(--ink-strong)]">
+          <CountUpValue value={Math.round(progress * 100)} />
+          <span className="text-xs">%</span>
+        </span>
+        <span className="text-[8.5px] uppercase tracking-[0.08em] text-[var(--ink-soft)]">kcal hoy</span>
+      </div>
     </div>
   );
 }
@@ -227,12 +267,15 @@ function TotalBar({
       <div className="flex items-baseline justify-between gap-2">
         <span className="text-[10px] uppercase tracking-[0.1em] text-[var(--ink-soft)]">{label}</span>
         <span className="font-mono text-[11px] text-[var(--ink-strong)]">
-          {Math.round(value)} / {target}
+          <CountUpValue value={value} /> / {target}
           {unit}
         </span>
       </div>
       <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-[var(--line-soft)]">
-        <div className="h-full rounded-full transition-[width]" style={{ width: `${percent}%`, background: color }} />
+        <div
+          className="h-full rounded-full transition-[width] duration-700 ease-out"
+          style={{ width: `${percent}%`, background: color }}
+        />
       </div>
     </div>
   );

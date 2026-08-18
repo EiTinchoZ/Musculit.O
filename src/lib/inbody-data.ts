@@ -154,6 +154,45 @@ export function mixSegmentColor(baseHex: string, targetHex: string, t: number): 
   return `rgb(${mixed.join(",")})`;
 }
 
+export type TrendMetricId = "weightKg" | "bodyFatPercent" | "leanMassKg";
+
+export type TrendMetric = {
+  id: TrendMetricId;
+  label: string;
+  shortLabel: string;
+  unit: string;
+  color: string;
+  value: (reading: InBodyReading) => number;
+};
+
+export const trendMetrics: TrendMetric[] = [
+  { id: "weightKg", label: "Peso", shortLabel: "Peso", unit: "kg", color: "var(--ember)", value: (r) => r.weightKg },
+  {
+    id: "bodyFatPercent",
+    label: "Grasa corporal",
+    shortLabel: "Grasa",
+    unit: "%",
+    color: "var(--ember-strong)",
+    value: (r) => r.bodyFatPercent,
+  },
+  {
+    id: "leanMassKg",
+    label: "Masa magra",
+    shortLabel: "M. magra",
+    unit: "kg",
+    color: "var(--status-good)",
+    value: (r) => r.leanMassKg,
+  },
+];
+
+export type TrendPoint = { date: string; value: number };
+
+export function buildTrendSeries(readings: InBodyReading[], metric: TrendMetric): TrendPoint[] {
+  return [...readings]
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .map((reading) => ({ date: reading.date, value: metric.value(reading) }));
+}
+
 export type BodyInsight = { title: string; body: string };
 
 // Los insights se calculan desde los numeros reales de la lectura, no se

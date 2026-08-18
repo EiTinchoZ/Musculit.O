@@ -307,6 +307,7 @@ export function MusculitApp() {
           </div>
         ) : null}
 
+        <div key={activeTab} className="tab-enter">
         {activeTab === "today" ? (
           <TodayTab
             state={state}
@@ -347,6 +348,7 @@ export function MusculitApp() {
         ) : null}
 
         {activeTab === "coach" ? <CoachTab /> : null}
+        </div>
       </div>
 
       {/* Nav */}

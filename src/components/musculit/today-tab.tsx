@@ -6,6 +6,7 @@ import { getHabitPeriodKey, getHabitsByCadence } from "@/lib/musculit-state";
 import type { TrainingDay } from "@/lib/routine-data";
 import { inferSetCount, normalizeSetWeights, convertWeight } from "@/lib/set-utils";
 import { HabitCadence, nutritionTips } from "@/lib/habits-data";
+import { CountUpValue } from "@/components/musculit/count-up-value";
 
 const PROGRESS_RING_CIRCUMFERENCE = 2 * Math.PI * 30;
 
@@ -150,7 +151,9 @@ export function TodayTab({
                   </linearGradient>
                 </defs>
               </svg>
-              <span className="absolute font-serif text-xl leading-none">{todayPercent}%</span>
+              <span className="absolute font-serif text-xl leading-none">
+                <CountUpValue value={todayPercent} />%
+              </span>
             </div>
           )}
         </div>

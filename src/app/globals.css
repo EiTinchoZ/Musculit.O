@@ -209,3 +209,74 @@ label {
     box-shadow: 0 0 0 rgba(231, 120, 55, 0);
   }
 }
+
+/* ---------- Tab enter / entradas generales ---------- */
+@keyframes tab-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.tab-enter {
+  animation: tab-fade-in 320ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes card-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.card-enter {
+  animation: card-fade-in 420ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* stagger para listas de cards dentro de un tab.card-enter */
+.card-enter-1 {
+  animation-delay: 40ms;
+}
+.card-enter-2 {
+  animation-delay: 80ms;
+}
+.card-enter-3 {
+  animation-delay: 120ms;
+}
+.card-enter-4 {
+  animation-delay: 160ms;
+}
+
+@keyframes draw-line {
+  from {
+    stroke-dashoffset: var(--line-length, 1000);
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+.chart-line-draw {
+  animation: draw-line 900ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Respeta la preferencia del sistema: apaga toda animacion/transicion no
+   esencial, incluidas las definidas arriba y las utilidades de Tailwind. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
